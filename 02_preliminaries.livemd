@@ -1,0 +1,291 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 2: Preliminaries
+
+```elixir
+Mix.install([
+  {:shot_ds, "~> 1.2"}
+])
+```
+
+## Notation
+
+We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$.
+
+Relations and functions on sequences are interpreted pointwise, so $\bar{a}_n \mathrel{R} \bar{b}_n$ stands for $a_1 \mathrel{R} b_1, \dots, a_n \mathrel{R} b_n$ and $f(\bar{a}_n)$ for $f(a_1),\dots,f(a_n)$.
+
+```elixir
+import ShotDs.Hol.Sigils
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+ShotDs.Hol.Sigils
+```
+
+## Church's Simple Theory of Types
+
+__Definition (Base Type, Type).__
+Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be a countably infinite set of _type variables_ ($\alpha$). The set of _base types_ is $\mathcal{B} = \mathcal{S} \uplus \mathcal{A}$ ($\varsigma$). The set of _types_ $\mathcal{T}$ ($\tau, \upsilon, \rho$), is defined inductively: if $\bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$, then $\bar{\tau}_n \to \varsigma \in \mathcal{T}$. We identify $() \to \varsigma$ with $\varsigma$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Canonical Decomposition).__
+Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n \to \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Arity, Goal).__
+For $\tau = \bar{\tau}_n \to \varsigma$ we call $n$ the _arity_ $\operatorname{ar}(\tau)$ of $\tau$ and $\varsigma$ its _goal_ $\operatorname{gl}(\tau)$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Type Substitution).__
+A _type substitution_ $\theta$ is a map from a finite subset of $\mathcal{A}$ to $\mathcal{T}$. Its application $\tau[\theta]$ is defined by recursion on $\tau$:
+
+$$
+\varsigma[\theta] = \begin{cases} \theta(\varsigma) & \varsigma \in \operatorname{dom}(\theta) \\ \varsigma & \text{otherwise} \end{cases}
+\qquad\qquad
+(\bar{\tau}_n \to \varsigma)[\theta] = \bar{\tau}_n[\theta], \bar{\upsilon}_m \to \varsigma' \quad \text{where } \varsigma[\theta] = \bar{\upsilon}_m \to \varsigma' \text{ and } n \geq 1
+$$
+
+We write $[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for the substitution mapping $\alpha_i$ to $\rho_i$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Instantiation and Arity).__
+$\operatorname{ar}(\tau[\theta]) \geq \operatorname{ar}(\tau)$, with equality if and only if $\operatorname{gl}(\tau)[\theta] \in \mathcal{B}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Our implementation defines the following recursive data structure for a `Type`. We use a unique Erlang `reference` as identifier for variables:
+
+```elixir
+defmodule Type_ do
+  @enforce_keys [:goal]
+  defstruct [:goal, args: []]
+  @type type_id() :: concrete_id() | variable_id()
+
+  @type concrete_id() :: atom()
+  @type variable_id() :: reference()
+
+  @type t :: %__MODULE__{goal: type_id(), args: [t()]}
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Type_, <<70, 79, 82, 49, 0, 0, 13, ...>>, ...}
+```
+
+__Definition (Type Scheme).__
+A _type scheme_ $\sigma \in \mathfrak{T}$ has the form $\forall \bar{\alpha}_n.\, \tau$ with $n \geq 0$, where $\bar{\alpha}_n$ are pairwise distinct and every type variable occurring in $\tau$ is among $\bar{\alpha}_n$. Quantification occurs only at the outermost position. A type $\rho$ is an _instance_ of $\sigma$ if $\rho = \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for some $\bar{\rho}_n \in \mathcal{T}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> A `TypeScheme` is implemented as a wrapper around a `Type`:
+
+```elixir
+defmodule TypeScheme_ do
+  @enforce_keys [:body]
+  defstruct [:body, vars: []]
+
+  @type t :: %__MODULE__{vars: [Type_.variable_id()], body: Type_.t()}
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, TypeScheme_, <<70, 79, 82, 49, 0, 0, 13, ...>>, ...}
+```
+
+> For example, the type $(\iota,(\iota\to o))\to o$ is represented as follows:
+
+```elixir
+# The sigils ~f, ~g, ~t and ~e internally invoke parsing of TPTP syntax,
+# which uses curried representation.
+~t| $i > ($i > $o) > $o |
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%ShotDs.Data.Type{
+  goal: :o,
+  args: [
+    %ShotDs.Data.Type{goal: :i, args: []},
+    %ShotDs.Data.Type{goal: :o, args: [%ShotDs.Data.Type{goal: :i, args: []}]}
+  ]
+}
+```
+
+---
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Signature).__
+A _signature_ $\Sigma$ is a finite set of declarations $c : \sigma$ with $\sigma \in \mathfrak{T}$, in which every constant symbol $c$ is declared at most once.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Free Variable, Parameter).__
+Let $\mathcal{V} = \biguplus_{\tau \in \mathcal{T}} \mathcal{V}_\tau$ and $\mathcal{P} = \biguplus_{\tau \in \mathcal{T}} \mathcal{P}_\tau$ be families of countably infinite, pairwise disjoint sets with $\mathcal{V} \cap \mathcal{P} = \emptyset$. Elements of $\mathcal{V}$ are _free variables_ ($X, Y$); elements of $\mathcal{P}$ are _parameters_ ($p, q$).
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Term).__
+Given a signature $\Sigma$, the set of _terms_ $\Lambda(\Sigma)$ is defined by
+
+$$
+\Lambda(\Sigma) \ni s, t \coloneqq c\langle \bar{\rho}_n \rangle \mid X \mid p \mid i \mid \lambda \bar{\tau}_n.\, t \mid s(\bar{t}_n)
+$$
+
+where $c$ is a constant symbol, $\bar{\rho}_n, \bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$, $X \in \mathcal{V}$, $p \in \mathcal{P}$, and $i \in \mathbb{N}_{>0}$ is a de Bruijn index.
+
+We identify $\lambda ().\, t$ with $t$ and $s()$ with $s$, and further identify $\lambda \bar{\tau}_n.\, \lambda \bar{\upsilon}_m.\, t$ with $\lambda \bar{\tau}_n, \bar{\upsilon}_m.\, t$
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Constants, variables and parameters are all implemented as `Declaration`. Note that we merge the definitions of constants and parameters and give parameters a unique `reference` as name. We also make the name of bound variables explicit and refer to them by their local index.
+
+```elixir
+defmodule Declaration_ do
+  @enforce_keys [:kind, :name, :type]
+  defstruct [:kind, :name, :type]
+
+  @type t :: free_var_t() | bound_var_t() | const_t()
+
+  @type free_var_t :: %__MODULE__{
+          kind: :fv,
+          name: var_name_t(),
+          type: Type.t()
+        }
+  @type bound_var_t :: %__MODULE__{
+          kind: :bv,
+          name: pos_integer(),
+          type: Type.t()
+        }
+  @type const_t :: %__MODULE__{
+          kind: :co,
+          name: const_name_t(),
+          type: Type.t()
+        }
+
+  @type var_name_t :: String.t() | reference() | pos_integer()
+  @type const_name_t :: String.t() | reference()
+end
+```
+
+> Terms as the main data structure require more thought in their representation to optimize both space and time efficiency. We opt for _hash-consed directed acyclic graphs_ (DAGs)
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Context).__
+A _context_ $\Gamma$ is a finite sequence of types $\bar{\tau}_n$, listed from outermost to innermost binding. Lookup $\Gamma(i)$ is defined by
+
+$$
+(\Gamma, \tau)(1) = \tau \qquad\qquad (\Gamma, \tau)(i+1) = \Gamma(i)
+$$
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Typing).__
+The typing judgement $\Gamma \vdash_\Sigma t : \tau$ is defined by the following rules; we drop the subscript $\Sigma$ when it is fixed.
+
+$$
+\frac{c : \forall \bar{\alpha}_n.\, \tau \in \Sigma \qquad \bar{\rho}_n \in \mathcal{T}}{\Gamma \vdash c\langle \bar{\rho}_n \rangle : \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]}
+\qquad
+\frac{X \in \mathcal{V}_\tau}{\Gamma \vdash X : \tau}
+\qquad
+\frac{p \in \mathcal{P}_\tau}{\Gamma \vdash p : \tau}
+\qquad
+\frac{\Gamma(i) = \tau}{\Gamma \vdash i : \tau}
+$$
+
+$$
+\frac{\Gamma, \bar{\tau}_n \vdash t : \bar{\upsilon}_m \to \varsigma}{\Gamma \vdash \lambda \bar{\tau}_n.\, t : \bar{\tau}_n, \bar{\upsilon}_m \to \varsigma}
+\qquad\qquad
+\frac{\Gamma \vdash s : \bar{\tau}_n \to \varsigma \qquad \Gamma \vdash \bar{t}_n : \bar{\tau}_n}{\Gamma \vdash s(\bar{t}_n) : \varsigma}
+$$
+
+A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for some $\tau$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Unique Typing).__
+If $\Gamma \vdash t : \tau$ and $\Gamma \vdash t : \tau'$, then $\tau = \tau'$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Shifting).__
+For $d \geq 0$ and cutoff $k \geq 0$, the _shift_ $t \uparrow^{d}_{k}$ is defined by
+
+$$
+i \uparrow^{d}_{k} = \begin{cases} i + d & i > k \\ i & i \leq k \end{cases}
+\qquad
+(\lambda \bar{\tau}_n.\, t) \uparrow^{d}_{k} = \lambda \bar{\tau}_n.\, t \uparrow^{d}_{k+n}
+\qquad
+(s(\bar{t}_n)) \uparrow^{d}_{k} = (s \uparrow^{d}_{k})(\bar{t}_n \uparrow^{d}_{k})
+$$
+
+together with $c\langle \bar{\rho}_n \rangle \uparrow^{d}_{k} = c\langle \bar{\rho}_n \rangle$, $X \uparrow^{d}_{k} = X$ and $p \uparrow^{d}_{k} = p$. We write $t \uparrow^{d}$ for $t \uparrow^{d}_{0}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Substitution).__
+The simultaneous substitution of a block $\bar{u}_n$ for the innermost $n$ indices, $t[\bar{u}_n]$, is $t[\bar{u}_n]_0$ where
+
+$$
+i[\bar{u}_n]_k = \begin{cases} u_{n+1-(i-k)} \uparrow^{k} & k < i \leq k+n \\ i - n & i > k+n \\ i & i \leq k \end{cases}
+\qquad
+(\lambda \bar{\tau}_m.\, t)[\bar{u}_n]_k = \lambda \bar{\tau}_m.\, t[\bar{u}_n]_{k+m}
+$$
+
+together with $(s(\bar{t}_m))[\bar{u}_n]_k = (s[\bar{u}_n]_k)(\bar{t}_m[\bar{u}_n]_k)$, and with constants, free variables and parameters left unchanged.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Free-Variable Substitution).__
+A _free-variable substitution_ $\vartheta$ is a map from a finite subset of $\mathcal{V}$ to $\Lambda(\Sigma)$ such that $\vartheta(X)$ is ground of type $\tau$ for every $X \in \mathcal{V}_\tau \cap \operatorname{dom}(\vartheta)$. Its application $t\vartheta$ is $t\vartheta_0$ where
+
+$$
+X\vartheta_k = \begin{cases} \vartheta(X) \uparrow^{k} & X \in \operatorname{dom}(\vartheta) \\ X & \text{otherwise} \end{cases}
+\qquad
+(\lambda \bar{\tau}_n.\, t)\vartheta_k = \lambda \bar{\tau}_n.\, t\vartheta_{k+n}
+$$
+
+together with $(s(\bar{t}_n))\vartheta_k = (s\vartheta_k)(\bar{t}_n\vartheta_k)$, and with constants, parameters and indices left unchanged.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition ($\beta$-Reduction).__ 
+$(\lambda \bar{\tau}_n.\, t)(\bar{u}_n, \bar{v}_m) \;\to_\beta\; t[\bar{u}_n](\bar{v}_m)$
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Head).__
+A _head_ is a term of the form $c\langle \bar{\rho}_n \rangle$, $X$, $p$ or $i$, ranged over by $h$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Long Normal Form).__
+A well-typed term $t$ with $\Gamma \vdash t : \tau$ is in _$\eta$-long $\beta$-normal form_ if $t = \lambda \bar{\tau}_n.\, h(\bar{u}_m)$ where $n = \operatorname{ar}(\tau)$ and each $u_j$ is in $\eta$-long $\beta$-normal form.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Parameter Term).__
+Let $p \in \mathcal{P}_{\bar{\tau}_n, \bar{\upsilon}_m \to \varsigma}$ and let $\bar{t}_n$ be terms with $\Gamma \vdash \bar{t}_n : \bar{\tau}_n$. The _parameter term_ of $p$ over $\bar{t}_n$ is
+
+$$
+p\{\bar{t}_n\} \;=\; \lambda \bar{\upsilon}_m.\, p(\bar{t}_n \uparrow^{m}, m, \dots, 1)
+$$
+
+We call $\bar{t}_n$ the _dependencies_ of $p\{\bar{t}_n\}$, and $p$ _fresh_ for a set of terms $T$ if $p \notin \operatorname{par}(T)$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Parameter Term).__
+$\Gamma \vdash p\{\bar{t}_n\} : \bar{\upsilon}_m \to \varsigma$, and $p\{\bar{t}_n\}$ is in $\eta$-long $\beta$-normal form whenever $\bar{t}_n$ are.
