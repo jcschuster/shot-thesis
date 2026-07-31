@@ -10,9 +10,13 @@ Mix.install([
 
 ## Notation
 
-We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$.
+We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$.
 
 Relations and functions on sequences are interpreted pointwise, so $\bar{a}_n \mathrel{R} \bar{b}_n$ stands for $a_1 \mathrel{R} b_1, \dots, a_n \mathrel{R} b_n$ and $f(\bar{a}_n)$ for $f(a_1),\dots,f(a_n)$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Sigils (`~f`, `~g`, `~t`, `~e`) enable quick parsing of TPTP notation into our internal data structures.
 
 ```elixir
 import ShotDs.Hol.Sigils
@@ -26,28 +30,32 @@ ShotDs.Hol.Sigils
 
 ## Church's Simple Theory of Types
 
+Simple Type Theory (STT) is a language of _terms_ and defines the semantics of the transformation of higher-order terms. It elegantly defines computation on a single reduction principle, which is $\beta$-reduction. An efficient implementation of STT is hence most relevant for the performance of a prover for higher-order logic.
+
+<!-- livebook:{"break_markdown":true} -->
+
 __Definition (Base Type, Type).__
-Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be a countably infinite set of _type variables_ ($\alpha$). The set of _base types_ is $\mathcal{B} = \mathcal{S} \uplus \mathcal{A}$ ($\varsigma$). The set of _types_ $\mathcal{T}$ ($\tau, \upsilon, \rho$), is defined inductively: if $\bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$, then $\bar{\tau}_n \to \varsigma \in \mathcal{T}$. We identify $() \to \varsigma$ with $\varsigma$.
+Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be a countably infinite set of _type variables_ ($\alpha$). The set of _base types_ is $\mathcal{B} = \mathcal{S} \uplus \mathcal{A}$ ($\varsigma$). The set of _types_ $\mathcal{T}$ ($\tau, \upsilon, \rho$), is defined inductively: if $\bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$, then $\bar{\tau}_n \!\to\! \varsigma \in \mathcal{T}$. We identify $() \!\to\! \varsigma$ with $\varsigma$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Canonical Decomposition).__
-Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n \to \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
+Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n \!\to\! \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Arity, Goal).__
-For $\tau = \bar{\tau}_n \to \varsigma$ we call $n$ the _arity_ $\operatorname{ar}(\tau)$ of $\tau$ and $\varsigma$ its _goal_ $\operatorname{gl}(\tau)$.
+For $\tau = \bar{\tau}_n \!\to\! \varsigma$ we call $n$ the _arity_ $\operatorname{ar}(\tau)$ of $\tau$ and $\varsigma$ its _goal_ $\operatorname{gl}(\tau)$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Type Substitution).__
-A _type substitution_ $\theta$ is a map from a finite subset of $\mathcal{A}$ to $\mathcal{T}$. Its application $\tau[\theta]$ is defined by recursion on $\tau$:
+A _type substitution_ $\vartheta$ is a map from a finite subset of $\mathcal{A}$ to $\mathcal{T}$. Its application $\tau[\vartheta]$ is defined by recursion on $\tau$:
 
 $$
-\varsigma[\theta] = \begin{cases} \theta(\varsigma) & \varsigma \in \operatorname{dom}(\theta) \\ \varsigma & \text{otherwise} \end{cases}
+\varsigma[\vartheta] = \begin{cases} \theta(\varsigma) & \varsigma \in \operatorname{dom}(\vartheta) \\ \varsigma & \text{otherwise} \end{cases}
 \qquad\qquad
-(\bar{\tau}_n \to \varsigma)[\theta] = \bar{\tau}_n[\theta], \bar{\upsilon}_m \to \varsigma' \quad \text{where } \varsigma[\theta] = \bar{\upsilon}_m \to \varsigma' \text{ and } n \geq 1
+(\bar{\tau}_n \!\to\! \varsigma)[\vartheta] = \bar{\tau}_n[\vartheta], \bar{\upsilon}_m \!\to\! \varsigma' \quad \text{where } \varsigma[\vartheta] = \bar{\upsilon}_m \!\to\! \varsigma' \text{ and } n \geq 1
 $$
 
 We write $[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for the substitution mapping $\alpha_i$ to $\rho_i$.
@@ -55,7 +63,7 @@ We write $[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for the substitution mapping $\
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Instantiation and Arity).__
-$\operatorname{ar}(\tau[\theta]) \geq \operatorname{ar}(\tau)$, with equality if and only if $\operatorname{gl}(\tau)[\theta] \in \mathcal{B}$.
+$\operatorname{ar}(\tau[\vartheta]) \geq \operatorname{ar}(\tau)$, with equality if and only if $\operatorname{gl}(\tau)[\vartheta] \in \mathcal{B}$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -81,11 +89,11 @@ end
 ```
 
 __Definition (Type Scheme).__
-A _type scheme_ $\sigma \in \mathfrak{T}$ has the form $\forall \bar{\alpha}_n.\, \tau$ with $n \geq 0$, where $\bar{\alpha}_n$ are pairwise distinct and every type variable occurring in $\tau$ is among $\bar{\alpha}_n$. Quantification occurs only at the outermost position. A type $\rho$ is an _instance_ of $\sigma$ if $\rho = \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for some $\bar{\rho}_n \in \mathcal{T}$.
+A _type scheme_ $\sigma \in \mathfrak{T}$ has the form $[\bar{\alpha}_n].\, \tau$ with $n \geq 0$, where $\bar{\alpha}_n$ are pairwise distinct and every type variable occurring in $\tau$ is among $\bar{\alpha}_n$. Quantification occurs only at the outermost position. A type $\rho$ is an _instance_ of $\sigma$ if $\rho = \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for some $\bar{\rho}_n \in \mathcal{T}$.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> A `TypeScheme` is implemented as a wrapper around a `Type`:
+> A `TypeScheme` is implemented as a wrapper around a `Type`, explicitly pinning down quantified type variables:
 
 ```elixir
 defmodule TypeScheme_ do
@@ -105,8 +113,9 @@ end
 > For example, the type $(\iota,(\iota\to o))\to o$ is represented as follows:
 
 ```elixir
-# The sigils ~f, ~g, ~t and ~e internally invoke parsing of TPTP syntax,
-# which uses curried representation.
+# The sigils ~f (formulae with goal type o unless specified otherwise),
+# ~g (terms which may have a type variable as goal type), ~t (types) and ~e (type contexts)
+# internally invoke parsing of TPTP syntax, which uses curried representation.
 ~t| $i > ($i > $o) > $o |
 ```
 
@@ -143,9 +152,9 @@ $$
 \Lambda(\Sigma) \ni s, t \coloneqq c\langle \bar{\rho}_n \rangle \mid X \mid p \mid i \mid \lambda \bar{\tau}_n.\, t \mid s(\bar{t}_n)
 $$
 
-where $c$ is a constant symbol, $\bar{\rho}_n, \bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$, $X \in \mathcal{V}$, $p \in \mathcal{P}$, and $i \in \mathbb{N}_{>0}$ is a de Bruijn index.
+where $c \in \Sigma$ is a constant symbol, $\bar{\rho}_n, \bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$, $X \in \mathcal{V}$, $p \in \mathcal{P}$, and $i \in \mathbb{N}_{>0}$ is a de Bruijn index.
 
-We identify $\lambda ().\, t$ with $t$ and $s()$ with $s$, and further identify $\lambda \bar{\tau}_n.\, \lambda \bar{\upsilon}_m.\, t$ with $\lambda \bar{\tau}_n, \bar{\upsilon}_m.\, t$
+We identify $\lambda ().\, t$ with $t$ and $s()$ with $s$, and further identify $\lambda \bar{\tau}_n.\, \lambda \bar{\upsilon}_m.\, t$ with $\lambda \bar{\tau}_n, \bar{\upsilon}_m.\, t$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -161,17 +170,17 @@ defmodule Declaration_ do
   @type free_var_t :: %__MODULE__{
           kind: :fv,
           name: var_name_t(),
-          type: Type.t()
+          type: Type_.t()
         }
   @type bound_var_t :: %__MODULE__{
           kind: :bv,
           name: pos_integer(),
-          type: Type.t()
+          type: Type_.t()
         }
   @type const_t :: %__MODULE__{
           kind: :co,
           name: const_name_t(),
-          type: Type.t()
+          type: Type_.t()
         }
 
   @type var_name_t :: String.t() | reference() | pos_integer()
@@ -179,9 +188,109 @@ defmodule Declaration_ do
 end
 ```
 
-> Terms as the main data structure require more thought in their representation to optimize both space and time efficiency. We opt for _hash-consed directed acyclic graphs_ (DAGs)
+<!-- livebook:{"output":true} -->
 
-<!-- livebook:{"break_markdown":true} -->
+```
+{:module, Declaration_, <<70, 79, 82, 49, 0, 0, 15, ...>>, ...}
+```
+
+> Terms as the main data structure require more thought in their representation to optimize both space and time efficiency. We opt for _hash-consed directed acyclic graphs_ (DAGs) and rely on the Erlang term storage (ETS), a heavily optimized global hash table, for efficient and concurrency-safe lookup. Our term representation features 5 data fields and 4 metadata fields, optimized for caching and minimizing recursive checks:
+
+```elixir
+defmodule Term_ do
+  @enforce_keys [:id, :head, :type]
+  defstruct [
+    # Data fields
+    :id,
+    :head,
+    :type,
+    bvars: [],
+    args: [],
+    # Metadata fields
+    fvars: MapSet.new(),
+    consts: MapSet.new(),
+    tvars: MapSet.new(),
+    max_num: 0
+  ]
+
+  @type global_term_id :: pos_integer()
+  @type local_term_id :: neg_integer()
+  @type dummy_term_id :: 0
+
+  @type term_id :: global_term_id() | local_term_id() | dummy_term_id()
+
+  @type t :: %__MODULE__{
+          id: term_id(),
+          bvars: [Declaration_.t()],
+          head: Declaration_.t(),
+          args: [term_id()],
+          type: Type_.t(),
+          fvars: MapSet.t(Declaration_.t()),
+          consts: MapSet.t(Declaration_.const_t()),
+          tvars: MapSet.t(Type_.variable_id()),
+          max_num: non_neg_integer()
+        }
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Term_, <<70, 79, 82, 49, 0, 0, 19, ...>>, ...}
+```
+
+> Terms are constructed globally, via the `ShotDs.Stt.TermFactory` module in a single ETS table (`:term_pool`). You may have noticed that term IDs may be _global_ or _local_. Global term IDs are stored in the `:term_pool` while local IDs only persist in a process-local ETS table, the _scratchpad_. Garbage collection is implemented so that result terms (and transitively, their argument terms) are committed to the `:term_pool` while the scratchpad with all its entries is deleted. Garbage collection can be enabled by wrapping the code block in `with_scratchpad(fn -> ... end)`.
+> 
+> Treating terms as global DAGs lets us write efficient canonical higher-order functions such as `map_term` or `fold_term` using term IDs as keys for caching:
+
+```elixir
+defmodule TermTraversal_ do
+  @spec map_term!(
+    term_id :: Term_.term_id(),
+    env :: a,
+    update_env :: (Term_.t(), a -> a),
+    transform :: (Term_.t(), [Term_.term_id()], a, map() -> {Term_.term_id(), map()}),
+    short_circuit :: (Term_.t(), a -> boolean()),
+    cache :: map()
+  ) :: {Term_.term_id(), map()}
+    when a: var
+  def map_term!(
+      term_id,
+      env,
+      update_env,
+      transform,
+      short_circuit \\ fn _, _ -> false end,
+      cache \\ %{}
+    ) do
+    case Map.fetch(cache, {term_id, env}) do
+      {:ok, cached_id} -> {cached_id, cache}
+      :error ->
+        term = StubTF.get_term!(term_id)
+        if short_circuit.(term, env) do
+          {term_id, Map.put(cache, {term_id, env}, term_id)}
+        else
+          new_env = update_env.(term, env)
+          arg_map_fn = &map_term!(&1, new_env, update_env, transform, short_circuit, &2)
+          {new_args, cache} = Enum.map_reduce(term.args, cache, arg_map_fn)
+          {new_id, cache} = transform.(term, new_args, new_env, cache)
+          {new_id, Map.put(cache, {term_id, env}, new_id)}
+        end
+    end
+  end
+end
+
+defmodule StubTF do
+  @type_o %Type_{goal: :o}
+  @dummy_head %Declaration_{kind: :co, name: "h", type: @type_o}
+  def get_term!(term_id), do: %Term_{id: term_id, head: @dummy_head, type: @type_o}
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, StubTF, <<70, 79, 82, 49, 0, 0, 11, ...>>, ...}
+```
 
 __Definition (Context).__
 A _context_ $\Gamma$ is a finite sequence of types $\bar{\tau}_n$, listed from outermost to innermost binding. Lookup $\Gamma(i)$ is defined by
@@ -196,7 +305,7 @@ __Definition (Typing).__
 The typing judgement $\Gamma \vdash_\Sigma t : \tau$ is defined by the following rules; we drop the subscript $\Sigma$ when it is fixed.
 
 $$
-\frac{c : \forall \bar{\alpha}_n.\, \tau \in \Sigma \qquad \bar{\rho}_n \in \mathcal{T}}{\Gamma \vdash c\langle \bar{\rho}_n \rangle : \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]}
+\frac{c : [\bar{\alpha}_n].\, \tau \in \Sigma \qquad \bar{\rho}_n \in \mathcal{T}}{\Gamma \vdash c\langle \bar{\rho}_n \rangle : \tau[\bar{\alpha}_n \mapsto \bar{\rho}_n]}
 \qquad
 \frac{X \in \mathcal{V}_\tau}{\Gamma \vdash X : \tau}
 \qquad
@@ -206,12 +315,12 @@ $$
 $$
 
 $$
-\frac{\Gamma, \bar{\tau}_n \vdash t : \bar{\upsilon}_m \to \varsigma}{\Gamma \vdash \lambda \bar{\tau}_n.\, t : \bar{\tau}_n, \bar{\upsilon}_m \to \varsigma}
+\frac{\Gamma, \bar{\tau}_n \vdash t : \bar{\upsilon}_m \!\to\! \varsigma}{\Gamma \vdash \lambda \bar{\tau}_n.\, t : \bar{\tau}_n, \bar{\upsilon}_m \!\to\! \varsigma}
 \qquad\qquad
-\frac{\Gamma \vdash s : \bar{\tau}_n \to \varsigma \qquad \Gamma \vdash \bar{t}_n : \bar{\tau}_n}{\Gamma \vdash s(\bar{t}_n) : \varsigma}
+\frac{\Gamma \vdash s : \bar{\tau}_n \!\to\! \varsigma \qquad \Gamma \vdash \bar{t}_n : \bar{\tau}_n}{\Gamma \vdash s(\bar{t}_n) : \varsigma}
 $$
 
-A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for some $\tau$.
+A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for some $\tau$. From here on, we only consider well-typed terms.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -240,7 +349,7 @@ The simultaneous substitution of a block $\bar{u}_n$ for the innermost $n$ indic
 
 $$
 i[\bar{u}_n]_k = \begin{cases} u_{n+1-(i-k)} \uparrow^{k} & k < i \leq k+n \\ i - n & i > k+n \\ i & i \leq k \end{cases}
-\qquad
+\qquad\qquad
 (\lambda \bar{\tau}_m.\, t)[\bar{u}_n]_k = \lambda \bar{\tau}_m.\, t[\bar{u}_n]_{k+m}
 $$
 
@@ -249,20 +358,24 @@ together with $(s(\bar{t}_m))[\bar{u}_n]_k = (s[\bar{u}_n]_k)(\bar{t}_m[\bar{u}_
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Free-Variable Substitution).__
-A _free-variable substitution_ $\vartheta$ is a map from a finite subset of $\mathcal{V}$ to $\Lambda(\Sigma)$ such that $\vartheta(X)$ is ground of type $\tau$ for every $X \in \mathcal{V}_\tau \cap \operatorname{dom}(\vartheta)$. Its application $t\vartheta$ is $t\vartheta_0$ where
+A _free-variable substitution_ $\theta$ is a map from a finite subset of $\mathcal{V}$ to $\Lambda(\Sigma)$ such that $\theta(X)$ is ground of type $\tau$ for every $X \in \mathcal{V}_\tau \cap \operatorname{dom}(\theta)$. Its application $t\theta$ is $t\theta_0$ where
 
 $$
-X\vartheta_k = \begin{cases} \vartheta(X) \uparrow^{k} & X \in \operatorname{dom}(\vartheta) \\ X & \text{otherwise} \end{cases}
-\qquad
-(\lambda \bar{\tau}_n.\, t)\vartheta_k = \lambda \bar{\tau}_n.\, t\vartheta_{k+n}
+X\theta_k = \begin{cases} \theta(X) \uparrow^{k} & X \in \operatorname{dom}(\theta) \\ X & \text{otherwise} \end{cases}
+\qquad\qquad
+(\lambda \bar{\tau}_n.\, t)\theta_k = \lambda \bar{\tau}_n.\, t\theta_{k+n}
 $$
 
-together with $(s(\bar{t}_n))\vartheta_k = (s\vartheta_k)(\bar{t}_n\vartheta_k)$, and with constants, parameters and indices left unchanged.
+together with $(s(\bar{t}_n))\theta_k = (s\theta_k)(\bar{t}_n\theta_k)$, and with constants, parameters and indices left unchanged.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Shifting and substitution are efficiently implemented on top of the `map_term` combinator. Both make use of the `env` field to store the current index depth and use a term's `max_num` and `fvars` fields to skip unnecessary recursive calls (as `short_circuit`).
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition ($\beta$-Reduction).__ 
-$(\lambda \bar{\tau}_n.\, t)(\bar{u}_n, \bar{v}_m) \;\to_\beta\; t[\bar{u}_n](\bar{v}_m)$
+$(\lambda \bar{\tau}_n.\, t)(\bar{u}_n, \bar{v}_m) \;\longrightarrow_\beta\; t[\bar{u}_n](\bar{v}_m)$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -272,7 +385,11 @@ A _head_ is a term of the form $c\langle \bar{\rho}_n \rangle$, $X$, $p$ or $i$,
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Long Normal Form).__
-A well-typed term $t$ with $\Gamma \vdash t : \tau$ is in _$\eta$-long $\beta$-normal form_ if $t = \lambda \bar{\tau}_n.\, h(\bar{u}_m)$ where $n = \operatorname{ar}(\tau)$ and each $u_j$ is in $\eta$-long $\beta$-normal form.
+A well-typed term $t$ with $\Gamma \vdash t : \tau$ is in _$\eta$-long $\beta$-normal form_ if $t = \lambda \bar{\upsilon}_n.\, h(\bar{u}_m)$ where $n = \operatorname{ar}(\tau)$ and each $u_j$ is in $\eta$-long $\beta$-normal form. In the following, we only consider terms that are in $\eta$-long $\beta$-normal form and assume that they are always $\beta$-reduced and $\eta$-expanded after each transformation.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The internals of the `TermFactory` and `Semantics` API ensure terms to always be well-typed and in $\eta$-long $\beta$-normal form.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -288,4 +405,82 @@ We call $\bar{t}_n$ the _dependencies_ of $p\{\bar{t}_n\}$, and $p$ _fresh_ for 
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Parameter Term).__
-$\Gamma \vdash p\{\bar{t}_n\} : \bar{\upsilon}_m \to \varsigma$, and $p\{\bar{t}_n\}$ is in $\eta$-long $\beta$-normal form whenever $\bar{t}_n$ are.
+$\Gamma \vdash p\{\bar{t}_n\} : \bar{\upsilon}_m \!\to\! \varsigma$, and $p\{\bar{t}_n\}$ is in $\eta$-long $\beta$-normal form whenever $\bar{t}_n$ are.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Syntactic Equality).__ Two terms $s$ and $t$ are _syntactically equal_ if $s\theta = t\theta$ for all substitutions $\theta$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Pre-Unification Problem).__ Given a set of equations $\{\bar{s}_n \overset{?}{=} \bar{t}_n\}$, a _pre-unification problem_ is finding a _pre-unifier_ $\Theta = (\theta, C)$ such that $\bar{s}_n\theta$ and $\bar{t}_n\theta$ are syntactically equal modulo finitely many rewrite steps at any depth in terms on either side using the equational theory $C$.
+
+## Classical Higher-Order Logic
+
+Classical higher-order logic (HOL) is defined as an extension of STT and is the language we will be working with. For that, we consider the signature $\Sigma^{\mathrm{HOL}}$ defined as follows.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Signature of HOL).__ $\Sigma^{\textrm{HOL}}$ contains the following symbols:
+
+$$
+\top, \bot : o
+\qquad\qquad
+\neg : o \!\to\! o
+\qquad\qquad
+\land, \lor, \supset, \equiv \;: (o, o) \!\to\! o
+$$
+$$
+\forall,\exists : [\alpha].\, (\alpha \!\to\! o) \!\to\! o
+\qquad\qquad
+=\; : [\alpha].\, (\alpha, \alpha) \!\to o
+$$
+
+We write $\varphi \oplus \psi$ instead of $\oplus(\varphi, \psi)$ for $\oplus \in \{\land, \lor, \supset, \equiv, =\}$ and $\mathrm{Q}\bar{\tau}_n.\, \varphi$ instead of $\mathrm{Q}(\lambda \tau_1.\, \dots \mathrm{Q}(\lambda \tau_n.\,\varphi))$ for $\mathrm{Q} \in \{\forall, \exists\}$. We call terms from $\Lambda(\Sigma^{\mathrm{HOL}})$ _HOL terms_ and to such of type $o$ as _formulae_ ($\varphi, \psi, \chi$).
+
+```elixir
+ShotDs.Hol.Definitions.signature()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["⊤", "⊥", "¬", "∨", "∧", "⊃", "≡", "=", "∀", "∃"]
+```
+
+__Definition (Frame).__ A _frame_ $\mathcal{D} = (\mathcal{D}_\tau)_{\tau \in \mathcal{T}}$ is a collection of nonempty sets $\mathcal{D}_\tau$ such that $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$ and $\mathcal{D}_{\bar{\tau}_n\to\varsigma}$ is a set of functions mapping $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Henkin Model).__ A _Henkin model_ is a tuple $\mathcal{M} = (\mathcal{D}, \mathcal{I})$, where $\mathcal{D}$ is a frame for which $\mathcal{D}_{\bar{\tau}\to\sigma}$ may contain only a subset of all functions from $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$ as long as every term still denotes, and $\mathcal{I}$ is a family of typed interpretation functions mapping $c\langle\bar{\tau}\rangle : \upsilon$ for $c \in \Sigma^{\mathrm{HOL}}$ and $\upsilon \in \mathcal{T}$ to appropriate elements in $\mathcal{D}_\upsilon$. $\mathcal{I}$ is defined as follows:
+
+* $\mathcal{I}(\top) = \mathrm{T}$, $\mathcal{I}(\bot) = \mathrm{F}$
+* $\mathcal{I}(\neg)$ maps $\mathrm{T}$ to $\mathrm{F}$ and $\mathrm{F}$ to $\mathrm{T}$
+* $\mathcal{I}(\land)$, $\mathcal{I}(\lor)$, $\mathcal{I}(\supset)$ and $\mathcal{I}(\equiv)$ denote the standard Boolean functions for conjunction, disjunction, implication and equivalence
+* $\mathcal{I}(=\!\langle o\rangle) = \mathcal{I}(\equiv)$
+* $\mathcal{I}(=\!\langle \iota\rangle)$ denotes the Leibniz characterization of equality (two terms are equal if they share the same properties)
+* $\mathcal{I}(=\!\langle(\tau_0, \bar{\tau}_n) \!\to\! \varsigma\rangle)$ denotes the function that maps $(s, t)$ to $\mathrm{T}$ iff $\mathcal{I}(=\!\langle(\bar{\tau}_n \!\to\! \varsigma\rangle)$ maps $(s~X, t~X)$ to $\mathrm{T}$ for all $X \in \mathcal{D}_{\tau_0}$
+* $\mathcal{I}(\forall\langle\tau\rangle)$ maps property $t$ to $\mathrm{T}$ iff it holds for all elements in $\mathcal{D}_\tau$
+* $\mathcal{I}(\exists\langle\tau\rangle)$ maps property $t$ to $\mathrm{T}$ iff it holds for some element in $\mathcal{D}_\tau$
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Denotation).__ Let $\mathcal{M} = (\mathcal{D}, \mathcal{I})$ be a Henkin model, $g$ be a variable assignemnt and $\bar{\xi}_k$ be a sequence of elements from $\mathcal{D}$. The _denotation_ of a HOL term $t : \tau$, denoted $[\![t]\!](\mathcal{M}, g, \bar{\xi})$ is an element in $\mathcal{D}_\tau$ defined recursively:
+
+* $[\![c]\!](\mathcal{M}, g, \bar{\xi}_k) = \mathcal{I}(c)$ for constant symbols $c \in \Sigma^{\mathrm{HOL}}$
+* $[\![X]\!](\mathcal{M}, g, \bar{\xi}_k) = g(X)$ for variables $X \in \mathcal{V}$
+* $[\![i]\!](\mathcal{M}, g, \bar{\xi}_k) = \xi_i$ for de Bruijn indices $i > 0$
+* $[\![s(\bar{t}_n)]\!](\mathcal{M}, g, \bar{\xi}_k) = \left([\![s]\!](\mathcal{M}, g, \bar{\xi}_k)\right) \left(\overline{[\![t_i]\!](\mathcal{M}, g, \bar{\xi}_k)}_n \right)$
+* $[\![\lambda\bar{\tau}_n.\, t : \bar{\upsilon}_m \!\to\! \varsigma]\!]^{\mathcal{M}, g, \bar{\xi}_k}$ is the function $f \in \mathcal{D}_{(\bar{\tau}_n, \bar{\upsilon}_m)\to\varsigma}$ such that for all $\bar{d}_n \in \overline{\mathcal{D}_{\tau_i}}_n$, $f(\bar{d}_n) = [\![t]\!]^{\mathcal{M}, g, (\overleftarrow{d}_n, \bar{\xi}_k)}$
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Satisfiability).__ A formula $\varphi$ is _satisfiable_ iff there exists a Henkin model $\mathcal{M}$ and a variable assignment $g$, such that $[\![\varphi]\!]^{\mathcal{M}, g, ()} = \mathrm{T}$. A set of formulae is satisfiable if all its elements are are jointly satisfiable under the same Henkin model and variable assignment. Conversely, a formula (or a set of formulae) is _unsatisfiable_ if no such model and variable assignment exists.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Entailment and Validity).__ A formula $\psi$ is _entailed_ by a set of formulae $\Phi$, denoted $\Phi \vdash \psi$ if $\Phi \cup \{\neg \psi\}$ is unsatisfiable. A formula $\varphi$ is _valid_, denoted $\vdash \varphi$, iff $\varnothing \vdash \varphi$.

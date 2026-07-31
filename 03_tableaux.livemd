@@ -1,0 +1,57 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 3: Higher-Order Tableaux
+
+## Global and Local Tableau States
+
+__Definition (Free Variable Tableau).__ A _free variable tableau_ (from here on just _tableau_) is a fully expanded tree generated through sound expansion rules following the semantics of the language. A path reads as the conjunction of the terms along it and a branch as a disjunction. As such, all branches must agree on their variable substitutions.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Disagreement).__ Two formulae $\varphi$ and $\psi$ _disagree_ if either $\varphi = \neg \psi$ or there is some substitution $\theta$ such that $\varphi\theta = \neg \psi\theta$ (modulo the usual semantics of $\neg$).
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Openness and Closure).__ We call a tableau branch _open_ if it is fully saturated and no further rule applications are possible. A tableau with one open branch is also referred to as _open_. If a branch encounters a disagreement pair, it is _locally closed_ in one of two states:
+
+* _ground closure_: the disagreement does not depend on a free variable substitution.
+* _conditional closure_: the disagreement depends on a substitution that all other branches must agree on.
+
+Conversely, we call a tableau _closed_ if every branch is _locally closed_ under globally agreed variable substitutions.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Model).__ The accumulated literals on an open tableau state constitute a model.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Proof).__ A closed tableau constitutes a proof.
+
+## Expansion Rules for Higher-Order Tableaux
+
+Following [TODO: citation], we distinguish between $\alpha$-, $\beta$-, $\gamma$- and $\delta$-rules for expansion
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Defintion ($\alpha$-Rules).__ $\alpha$-rules are expansion rules for linear decomposition. Applying it yields a list of (implicitly conjuncted) terms on the branch. On the propositional level, we consider the following rules, where $\varphi$ and $\psi$ are arbitrary HOL terms of type $o$:
+
+$$
+\frac{\neg\neg \varphi}{\varphi}(\neg\neg) \qquad
+\frac{\varphi \land \psi}{\begin{gathered}\varphi \\ \psi\end{gathered}}(\land) \qquad
+\frac{\neg (\varphi \lor \psi)}{\begin{gathered}\neg \varphi \\ \neg \psi\end{gathered}}(\neg\lor) \qquad
+\frac{\neg(\varphi \supset \psi)}{\begin{gathered}\varphi \\ \neg \psi\end{gathered}}(\neg\supset)
+$$
+
+In the spirit of [TODO: cite e.g. Kohlhase], we can extend this to expansion rules for equality:
+
+$$
+\frac{\varphi =\!\langle o\rangle\; \psi}{\varphi \equiv \psi}(=\!\langle o\rangle) \qquad
+\frac{s =\!\langle \iota\rangle\; t}{\forall\iota\!\to\!o.\,1~s \equiv 1~t}(=\!\langle \iota\rangle) \qquad
+\frac{s =\!\langle (\tau_1, \bar{\tau}_n) \!\to\! \varsigma\rangle\; t}{\forall \tau_1.\, s~1 =\!\langle\bar{\tau}_n\to\varsigma\rangle\; t~1)}(=\!\langle(\tau_1, \bar{\tau}_n) \to \varsigma\rangle)
+$$
+
+$$
+\frac{\neg(\varphi =\!\langle o\rangle\; \psi)}{\neg(\varphi \equiv \psi)}(\neg=\!\langle o\rangle) \qquad
+\frac{\neg(s =\!\langle \iota\rangle\; t)}{\neg(\forall\iota\!\to\!o.\,1~s \equiv 1~t)}(\neg=\!\langle \iota\rangle) \qquad
+\frac{\neg(s =\!\langle (\tau_1, \bar{\tau}_n) \!\to\! \varsigma\rangle\; t)}{\neg(\forall \tau_1.\, s~1 =\!\langle\bar{\tau}_n\to\varsigma\rangle\; t~1))}(\neg=\!\langle(\tau_1, \bar{\tau}_n) \to \varsigma\rangle)
+$$
