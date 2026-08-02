@@ -46,12 +46,12 @@ In the spirit of [TODO: cite e.g. Kohlhase], we can extend this to expansion rul
 
 $$
 \frac{\varphi =\!\langle o\rangle\; \psi}{\varphi \equiv \psi}(=\!\langle o\rangle) \qquad
-\frac{s =\!\langle \iota\rangle\; t}{\forall\iota\!\to\!o.\,1~s \equiv 1~t}(=\!\langle \iota\rangle) \qquad
-\frac{s =\!\langle (\tau_1, \bar{\tau}_n) \!\to\! \varsigma\rangle\; t}{\forall \tau_1.\, s~1 =\!\langle\bar{\tau}_n\to\varsigma\rangle\; t~1)}(=\!\langle(\tau_1, \bar{\tau}_n) \to \varsigma\rangle)
+\frac{s =\!\langle \iota\rangle\; t}{\forall\iota\!\to\!o.\,1(s) \equiv 1(t)}(=\!\langle \iota\rangle) \qquad
+\frac{s =\!\langle (\tau_1, \bar{\tau}_{2..n}) \!\to\! \varsigma\rangle\; t}{\forall \tau_1.\, s(1) =\!\langle\bar{\tau}_{2..n}\to\varsigma\rangle\; t(1)}(=\!\langle(\tau_1, \bar{\tau}_{2..n}) \to \varsigma\rangle)
 $$
 
 $$
-\frac{\neg(\varphi =\!\langle o\rangle\; \psi)}{\neg(\varphi \equiv \psi)}(\neg=\!\langle o\rangle) \qquad
-\frac{\neg(s =\!\langle \iota\rangle\; t)}{\neg(\forall\iota\!\to\!o.\,1~s \equiv 1~t)}(\neg=\!\langle \iota\rangle) \qquad
-\frac{\neg(s =\!\langle (\tau_1, \bar{\tau}_n) \!\to\! \varsigma\rangle\; t)}{\neg(\forall \tau_1.\, s~1 =\!\langle\bar{\tau}_n\to\varsigma\rangle\; t~1))}(\neg=\!\langle(\tau_1, \bar{\tau}_n) \to \varsigma\rangle)
+\frac{\neg(\varphi =\!\langle o\rangle\; \psi)}{\neg(\varphi \equiv \psi)}(\neg=\!\langle o\rangle) \quad
+\frac{\neg(s =\!\langle \iota\rangle\; t)}{\neg(\forall\iota\!\to\!o.\,1(s) \equiv 1(t))}(\neg=\!\langle \iota\rangle) \quad
+\frac{\neg(s =\!\langle (\tau_1, \bar{\tau}_{2..n}) \!\to\! \varsigma\rangle\; t)}{\neg(\forall \tau_1.\, s(1) =\!\langle\bar{\tau}_{2..n}\to\varsigma\rangle\; t(1))}(\neg=\!\langle(\tau_1, \bar{\tau}_{2..n}) \to \varsigma\rangle)
 $$

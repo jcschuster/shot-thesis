@@ -10,7 +10,7 @@ Mix.install([
 
 ## Notation
 
-We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$.
+We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$. We denote the sequence $a_i,\dots,a_j$ by $\bar{a}_{i..j}$ which we identify with $()$ when $i \ge j$.
 
 Relations and functions on sequences are interpreted pointwise, so $\bar{a}_n \mathrel{R} \bar{b}_n$ stands for $a_1 \mathrel{R} b_1, \dots, a_n \mathrel{R} b_n$ and $f(\bar{a}_n)$ for $f(a_1),\dots,f(a_n)$.
 
