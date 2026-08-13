@@ -1,0 +1,31 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Bibliography
+
+## Section
+
+[TODO: consolidate every `[TODO: cite ...]` marker from the chapters into this list, and mirror it into `bibliography.bib` for the LaTeX build.]
+
+## Type Theory and Higher-Order Logic
+
+[TODO: Church; Andrews, _An Introduction to Mathematical Logic and Type Theory_ (2002); Henkin semantics.]
+
+## Tableaux
+
+[TODO: Fitting; Beckert & Hähnle on free-variable and rigid-variable tableaux; Kohlhase on higher-order tableaux; Andrews on matings and TPS; Bishop & Andrews, _Selectively Instantiating Definitions_ (1998).]
+
+## Unification
+
+[TODO: Huet 1975; Goldfarb 1981; Miller 1991; Huet and Stirling 2009 on matching.]
+
+## Term Orders and Rewriting
+
+[TODO: Niederhauser & Middeldorp 2025; Blanqui, Jouannaud & Rubio; superposition background.]
+
+## Agent Architectures and Model Finding
+
+[TODO: Benzmüller & Sorge on Ω-Ants; Wisniewski & Benzmüller on the higher-order blackboard architecture; Blanchette & Nipkow on Nitpick.]
+
+## Systems and Implementation
+
+[TODO: Leo-III; Lash; Satallax; the BEAM and OTP supervision principles; the Outbox pattern.]

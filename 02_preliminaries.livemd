@@ -4,15 +4,20 @@
 
 ```elixir
 Mix.install([
-  {:shot_ds, "~> 1.2"}
+  {:shot_ds, "~> 1.2.9"},
+  {:kino, "~> 0.19.0"}
 ])
 ```
 
 ## Notation
 
-We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$. We denote the sequence $a_i,\dots,a_j$ by $\bar{a}_{i..j}$ which we identify with $()$ when $i \ge j$.
+We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\bar{n}$ is the sequence $1,\dots,n$ and $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$. We denote the sequence $a_i,\dots,a_j$ by $\bar{a}_{i..j}$ which we identify with $()$ when $i \ge j$.
 
 Relations and functions on sequences are interpreted pointwise, so $\bar{a}_n \mathrel{R} \bar{b}_n$ stands for $a_1 \mathrel{R} b_1, \dots, a_n \mathrel{R} b_n$ and $f(\bar{a}_n)$ for $f(a_1),\dots,f(a_n)$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Three registers run through every chapter and are kept typographically distinct. __Definition__ and __Proposition__ blocks are the mathematics: implementation-independent, and the only material a soundness or completeness argument may appeal to. Ordinary prose motivates and explains, and carries no logical weight. Blockquoted paragraphs are _implementation notes_, recording what the Shot packages do, which module does it and which parameter governs it; a note may narrow a definition without the definition changing. Executable cells and quoted code are the sharpest form of the third register: where the code is the precise statement, it is run rather than paraphrased.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -30,22 +35,26 @@ ShotDs.Hol.Sigils
 
 ## Church's Simple Theory of Types
 
-Simple Type Theory (STT) is a language of _terms_ and defines the semantics of the transformation of higher-order terms. It elegantly defines computation on a single reduction principle, which is $\beta$-reduction. An efficient implementation of STT is hence most relevant for the performance of a prover for higher-order logic.
+Simple Type Theory (STT) is a language of _terms_ and defines the semantics of the transformation of higher-order terms. It defines computation on a single reduction principle, $\beta$-reduction. An efficient implementation of STT is hence most relevant for the performance of a prover for higher-order logic.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Base Type, Type).__
-Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be a countably infinite set of _type variables_ ($\alpha$). The set of _base types_ is $\mathcal{B} = \mathcal{S} \uplus \mathcal{A}$ ($\varsigma$). The set of _types_ $\mathcal{T}$ ($\tau, \upsilon, \rho$), is defined inductively: if $\bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$, then $\bar{\tau}_n \!\to\! \varsigma \in \mathcal{T}$. We identify $() \!\to\! \varsigma$ with $\varsigma$.
+Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be a countably infinite set of _type variables_ ($\alpha$). The set of _base types_ is $\mathcal{B} = \mathcal{S} \uplus \mathcal{A}$ ($\varsigma$). The set of _types_ $\mathcal{T}$ ($\tau, \upsilon, \rho$), is defined inductively: if $\bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$, then $\bar{\tau}_n {\to} \varsigma \in \mathcal{T}$. We identify $() {\to} \varsigma$ with $\varsigma$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Canonical Decomposition).__
-Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n \!\to\! \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
+Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n {\to} \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition ($o$-Types).__ The set of _$o$-types_ is inductively defined as follows: $o$ is an $o$-type and if $\varsigma$ and every $\tau_i$ is an $o$-type, then $(\bar{\tau}_n){\to}\varsigma$ is an $o$-type.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Arity, Goal).__
-For $\tau = \bar{\tau}_n \!\to\! \varsigma$ we call $n$ the _arity_ $\operatorname{ar}(\tau)$ of $\tau$ and $\varsigma$ its _goal_ $\operatorname{gl}(\tau)$.
+For $\tau = \bar{\upsilon}_n {\to} \varsigma$ we call $n$ the _arity_ $\operatorname{ar}(\tau)$ of $\tau$ and $\varsigma$ its _goal_ $\operatorname{gl}(\tau)$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -55,7 +64,7 @@ A _type substitution_ $\vartheta$ is a map from a finite subset of $\mathcal{A}$
 $$
 \varsigma[\vartheta] = \begin{cases} \theta(\varsigma) & \varsigma \in \operatorname{dom}(\vartheta) \\ \varsigma & \text{otherwise} \end{cases}
 \qquad\qquad
-(\bar{\tau}_n \!\to\! \varsigma)[\vartheta] = \bar{\tau}_n[\vartheta], \bar{\upsilon}_m \!\to\! \varsigma' \quad \text{where } \varsigma[\vartheta] = \bar{\upsilon}_m \!\to\! \varsigma' \text{ and } n \geq 1
+(\bar{\tau}_n \!\to\! \varsigma)[\vartheta] = \bar{\tau}_n[\vartheta], \bar{\upsilon}_m {\to} \varsigma' \quad \text{where } \varsigma[\vartheta] = \bar{\upsilon}_m {\to} \varsigma' \text{ and } n \geq 1
 $$
 
 We write $[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for the substitution mapping $\alpha_i$ to $\rho_i$.
@@ -110,25 +119,13 @@ end
 {:module, TypeScheme_, <<70, 79, 82, 49, 0, 0, 13, ...>>, ...}
 ```
 
-> For example, the type $(\iota,(\iota\to o))\to o$ is represented as follows:
+> For example, the type $(\iota, (\iota {\to} o)) {\to} o$ is represented as follows:
 
 ```elixir
 # The sigils ~f (formulae with goal type o unless specified otherwise),
 # ~g (terms which may have a type variable as goal type), ~t (types) and ~e (type contexts)
 # internally invoke parsing of TPTP syntax, which uses curried representation.
-~t| $i > ($i > $o) > $o |
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-%ShotDs.Data.Type{
-  goal: :o,
-  args: [
-    %ShotDs.Data.Type{goal: :i, args: []},
-    %ShotDs.Data.Type{goal: :o, args: [%ShotDs.Data.Type{goal: :i, args: []}]}
-  ]
-}
+~t| $i > ($i > $o) > $o | |> Kino.Tree.new
 ```
 
 ---
@@ -153,7 +150,6 @@ $$
 $$
 
 where $c \in \Sigma$ is a constant symbol, $\bar{\rho}_n, \bar{\tau}_n \in \mathcal{T}$ with $n \geq 0$, $X \in \mathcal{V}$, $p \in \mathcal{P}$, and $i \in \mathbb{N}_{>0}$ is a de Bruijn index.
-
 We identify $\lambda ().\, t$ with $t$ and $s()$ with $s$, and further identify $\lambda \bar{\tau}_n.\, \lambda \bar{\upsilon}_m.\, t$ with $\lambda \bar{\tau}_n, \bar{\upsilon}_m.\, t$.
 
 <!-- livebook:{"break_markdown":true} -->
@@ -220,10 +216,12 @@ defmodule Term_ do
   @type term_id :: global_term_id() | local_term_id() | dummy_term_id()
 
   @type t :: %__MODULE__{
+          # Data fields
           id: term_id(),
           bvars: [Declaration_.t()],
           head: Declaration_.t(),
           args: [term_id()],
+          # Metadata fields
           type: Type_.t(),
           fvars: MapSet.t(Declaration_.t()),
           consts: MapSet.t(Declaration_.const_t()),
@@ -239,8 +237,42 @@ end
 {:module, Term_, <<70, 79, 82, 49, 0, 0, 19, ...>>, ...}
 ```
 
-> Terms are constructed globally, via the `ShotDs.Stt.TermFactory` module in a single ETS table (`:term_pool`). You may have noticed that term IDs may be _global_ or _local_. Global term IDs are stored in the `:term_pool` while local IDs only persist in a process-local ETS table, the _scratchpad_. Garbage collection is implemented so that result terms (and transitively, their argument terms) are committed to the `:term_pool` while the scratchpad with all its entries is deleted. Garbage collection can be enabled by wrapping the code block in `with_scratchpad(fn -> ... end)`.
-> 
+> A constructed term shows the representation directly. Note that `:args` holds term IDs rather than nested terms, so the DAG is flat in the struct and unfolds only through the factory:
+
+```elixir
+alias ShotDs.Stt.TermFactory, as: TF
+
+t = with_context ~e[p: $i>$o, q: $i>$o, f: $i>$i, a: $i], fn ->
+  ~f[(p @ (f @ a)) & (q @ (f @ a))]
+end
+
+TF.get_term!(t) |> Kino.Tree.new
+```
+
+```elixir
+[left, right] = TF.get_term!(t).args
+
+TF.get_term!(left) |> Kino.Tree.new()
+```
+
+> Both conjuncts reference the same node for $f(a)$, which is memoised once:
+
+```elixir
+TF.get_term!(left).args == TF.get_term!(right).args
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+> Terms are constructed globally, via the `ShotDs.Stt.TermFactory` module in a single ETS table (`:term_pool`). You may have noticed that term IDs may be _global_ or _local_. Global term IDs are stored in the `:term_pool` while local IDs only persist in a process-local ETS table, the _scratchpad_. Garbage collection is implemented so that result terms (and transitively, their argument terms) are committed to the `:term_pool` while the scratchpad with all its entries is deleted. Garbage collection can be enabled by wrapping the code block in `with_scratchpad(fn -> ... end)`. Using `Kino` lets us inspect the content of the `:term_pool` interactively. Note that the `:term_pool` records `signature -> term_id` and `term_id -> term`.
+
+```elixir
+Kino.ETS.new :term_pool
+```
+
 > Treating terms as global DAGs lets us write efficient canonical higher-order functions such as `map_term` or `fold_term` using term IDs as keys for caching:
 
 ```elixir
@@ -315,12 +347,12 @@ $$
 $$
 
 $$
-\frac{\Gamma, \bar{\tau}_n \vdash t : \bar{\upsilon}_m \!\to\! \varsigma}{\Gamma \vdash \lambda \bar{\tau}_n.\, t : \bar{\tau}_n, \bar{\upsilon}_m \!\to\! \varsigma}
+\frac{\Gamma, \bar{\tau}_n \vdash t : \bar{\upsilon}_m {\to} \varsigma}{\Gamma \vdash \lambda \bar{\tau}_n.\, t : \bar{\tau}_n, \bar{\upsilon}_m {\to} \varsigma}
 \qquad\qquad
-\frac{\Gamma \vdash s : \bar{\tau}_n \!\to\! \varsigma \qquad \Gamma \vdash \bar{t}_n : \bar{\tau}_n}{\Gamma \vdash s(\bar{t}_n) : \varsigma}
+\frac{\Gamma \vdash s : \bar{\tau}_n {\to} \varsigma \qquad \Gamma \vdash \bar{t}_n : \bar{\tau}_n}{\Gamma \vdash s(\bar{t}_n) : \varsigma}
 $$
 
-A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for some $\tau$. From here on, we only consider well-typed terms.
+A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for some $\tau$. From here on, we only consider well-typed terms. We write $t : \tau$ for the term $t$ for which $\Gamma \vdash t : \tau$ for some global context $\Gamma$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -333,14 +365,14 @@ __Definition (Shifting).__
 For $d \geq 0$ and cutoff $k \geq 0$, the _shift_ $t \uparrow^{d}_{k}$ is defined by
 
 $$
-i \uparrow^{d}_{k} = \begin{cases} i + d & i > k \\ i & i \leq k \end{cases}
+i \!\uparrow^{d}_{k}\; = \begin{cases} i + d & i > k \\ i & i \leq k \end{cases}
 \qquad
-(\lambda \bar{\tau}_n.\, t) \uparrow^{d}_{k} = \lambda \bar{\tau}_n.\, t \uparrow^{d}_{k+n}
+(\lambda \bar{\tau}_n.\, t) \!\uparrow^{d}_{k}\; = \lambda \bar{\tau}_n.\, t \!\uparrow^{d}_{k+n}\;
 \qquad
-(s(\bar{t}_n)) \uparrow^{d}_{k} = (s \uparrow^{d}_{k})(\bar{t}_n \uparrow^{d}_{k})
+(s(\bar{t}_n)) \!\uparrow^{d}_{k}\; = (s \!\uparrow^{d}_{k})(\bar{t}_n \!\uparrow^{d}_{k})
 $$
 
-together with $c\langle \bar{\rho}_n \rangle \uparrow^{d}_{k} = c\langle \bar{\rho}_n \rangle$, $X \uparrow^{d}_{k} = X$ and $p \uparrow^{d}_{k} = p$. We write $t \uparrow^{d}$ for $t \uparrow^{d}_{0}$.
+together with $c\langle \bar{\rho}_n \rangle \!\uparrow^{d}_{k}\; = c\langle \bar{\rho}_n \rangle$, $X \!\uparrow^{d}_{k}\; = X$ and $p \!\uparrow^{d}_{k}\; = p$. We write $t \!\uparrow^{d}$ for $t \!\uparrow^{d}_{0}$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -348,7 +380,7 @@ __Definition (Substitution).__
 The simultaneous substitution of a block $\bar{u}_n$ for the innermost $n$ indices, $t[\bar{u}_n]$, is $t[\bar{u}_n]_0$ where
 
 $$
-i[\bar{u}_n]_k = \begin{cases} u_{n+1-(i-k)} \uparrow^{k} & k < i \leq k+n \\ i - n & i > k+n \\ i & i \leq k \end{cases}
+i[\bar{u}_n]_k = \begin{cases} u_{n+1-(i-k)} \!\uparrow^{k} & k < i \leq k+n \\ i - n & i > k+n \\ i & i \leq k \end{cases}
 \qquad\qquad
 (\lambda \bar{\tau}_m.\, t)[\bar{u}_n]_k = \lambda \bar{\tau}_m.\, t[\bar{u}_n]_{k+m}
 $$
@@ -358,7 +390,7 @@ together with $(s(\bar{t}_m))[\bar{u}_n]_k = (s[\bar{u}_n]_k)(\bar{t}_m[\bar{u}_
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Free-Variable Substitution).__
-A _free-variable substitution_ $\theta$ is a map from a finite subset of $\mathcal{V}$ to $\Lambda(\Sigma)$ such that $\theta(X)$ is ground of type $\tau$ for every $X \in \mathcal{V}_\tau \cap \operatorname{dom}(\theta)$. Its application $t\theta$ is $t\theta_0$ where
+A _free-variable substitution_ $\theta$ is a map from a finite subset of $\mathcal{V}$ to $\Lambda(\Sigma)$ such that $\theta(X)$ has type $\tau$ for every $X \in \mathcal{V}_\tau \cap \operatorname{dom}(\theta)$. Its application $t\theta$ is $t\theta_0$ where
 
 $$
 X\theta_k = \begin{cases} \theta(X) \uparrow^{k} & X \in \operatorname{dom}(\theta) \\ X & \text{otherwise} \end{cases}
@@ -394,18 +426,22 @@ A well-typed term $t$ with $\Gamma \vdash t : \tau$ is in _$\eta$-long $\beta$-n
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Parameter Term).__
-Let $p \in \mathcal{P}_{\bar{\tau}_n, \bar{\upsilon}_m \to \varsigma}$ and let $\bar{t}_n$ be terms with $\Gamma \vdash \bar{t}_n : \bar{\tau}_n$. The _parameter term_ of $p$ over $\bar{t}_n$ is
+Let $\bar{X}_n \in \mathcal{V}$ be pairwise distinct with $\bar{X}_n \in \mathcal{V}_{\bar{\tau}_n}$, and let $p \in \mathcal{P}_{(\bar{\tau}_n, \bar{\upsilon}_m) \to \varsigma}$. The _parameter term_ of $p$ over $\bar{X}_n$ is
 
 $$
-p\{\bar{t}_n\} \;=\; \lambda \bar{\upsilon}_m.\, p(\bar{t}_n \uparrow^{m}, m, \dots, 1)
+p\{\bar{X}_n\} = \lambda \bar{\upsilon}_m.\, p(\bar{X}_n, m, \dots, 1)
 $$
 
-We call $\bar{t}_n$ the _dependencies_ of $p\{\bar{t}_n\}$, and $p$ _fresh_ for a set of terms $T$ if $p \notin \operatorname{par}(T)$.
+We call $\bar{X}_n$ the _dependencies_ of $p\{\bar{X}_n\}$, and $p$ _fresh_ for a set of terms $T$ if $p \notin \operatorname{par}(T)$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Parameter Term).__
-$\Gamma \vdash p\{\bar{t}_n\} : \bar{\upsilon}_m \!\to\! \varsigma$, and $p\{\bar{t}_n\}$ is in $\eta$-long $\beta$-normal form whenever $\bar{t}_n$ are.
+$\Gamma \vdash p\{\bar{X}_n\} : \bar{\upsilon}_m \!\to\! \varsigma$, and $p\{\bar{X}_n\}$ is in $\eta$-long $\beta$-normal form.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> A parameter is minted by `make_fresh_const_term/1`, which builds a `Declaration` carrying a unique `reference` as its name at type $(\bar{\tau}_n, \bar{\upsilon}_m){\to}\varsigma$. Since `make_term/1` $\eta$-expands any declaration of arrow type on construction, the abstraction $\lambda\bar{\upsilon}_m$ is produced by the term factory rather than written by the caller; applying the result to the dependencies $\bar{X}_n$ then $\beta$-reduces the outer $n$ binders away. No shift on $\bar{X}_n$ is needed, as shifting acts as the identity on free variables. For $m = 0$ the parameter term collapses to $p(\bar{X}_n)$, and for $n = 0$ to the $\eta$-long form of $p$ itself.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -413,11 +449,23 @@ $\Gamma \vdash p\{\bar{t}_n\} : \bar{\upsilon}_m \!\to\! \varsigma$, and $p\{\ba
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Syntactic Equality).__ Two terms $s$ and $t$ are _syntactically equal_ if $s\theta = t\theta$ for all substitutions $\theta$.
+__Definition (Syntactic Equality).__ Two terms $s$ and $t$ are _syntactically equal_ if they are the same element of $\Lambda(\Sigma)$.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Pre-Unification Problem).__ Given a set of equations $\{\bar{s}_n \overset{?}{=} \bar{t}_n\}$, a _pre-unification problem_ is finding a _pre-unifier_ $\Theta = (\theta, C)$ such that $\bar{s}_n\theta$ and $\bar{t}_n\theta$ are syntactically equal modulo finitely many rewrite steps at any depth in terms on either side using the equational theory $C$.
+> Because terms are hash-consed into a single global pool, syntactic equality is decided by comparing term IDs. Together with de Bruijn indices and the $\eta$-long $\beta$-normal invariant, this makes $\alpha$-, $\beta$- and $\eta$-equivalence all coincide with identity of IDs.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Flex, Rigid).__ A term is _flex_ if its head is a free variable and _rigid_ otherwise. A _unification problem_ is a finite set of equations $\{\bar{s}_n \overset{?}{=} \bar{t}_n\}$; an equation is _flex-flex_ if both of its sides are flex. A _unifier_ of a unification problem is a free-variable substitution $\theta$ such that $s_i\theta$ and $t_i\theta$ are syntactically equal for every $i$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Pre-Unification Problem).__ A _pre-unifier_ of a unification problem $E$ is a pair $\Theta = (\theta, C)$, where $\theta$ is a free-variable substitution and $C$ is a finite set of flex-flex equations, such that $\theta\theta'$ is a unifier of $E$ for every unifier $\theta'$ of $C$. The _pre-unification problem_ for $E$ is the task of enumerating pre-unifiers of $E$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> A pre-unifier is represented as `%ShotUn.UnifSolution{substitutions: theta, flex_pairs: C}` and pre-unifiers are enumerated lazily as a stream. Flex-flex equations are always solvable, so a pre-unifier witnesses solvability of $E$ without committing to a solution for $C$.
 
 ## Classical Higher-Order Logic
 
@@ -432,18 +480,18 @@ $$
 \qquad\qquad
 \neg : o \!\to\! o
 \qquad\qquad
-\land, \lor, \supset, \equiv \;: (o, o) \!\to\! o
+\lor, \land, \supset, \equiv \;: (o, o) {\to} o
 $$
 $$
-\forall,\exists : [\alpha].\, (\alpha \!\to\! o) \!\to\! o
+\forall,\exists : [\alpha].\, (\alpha {\to} o) {\to} o
 \qquad\qquad
-=\; : [\alpha].\, (\alpha, \alpha) \!\to o
+=\; : [\alpha].\, (\alpha, \alpha) {\to} o
 $$
 
-We write $\varphi \oplus \psi$ instead of $\oplus(\varphi, \psi)$ for $\oplus \in \{\land, \lor, \supset, \equiv, =\}$ and $\mathrm{Q}\bar{\tau}_n.\, \varphi$ instead of $\mathrm{Q}(\lambda \tau_1.\, \dots \mathrm{Q}(\lambda \tau_n.\,\varphi))$ for $\mathrm{Q} \in \{\forall, \exists\}$. We call terms from $\Lambda(\Sigma^{\mathrm{HOL}})$ _HOL terms_ and to such of type $o$ as _formulae_ ($\varphi, \psi, \chi$).
+We write $\varphi * \psi$ instead of $*(\varphi, \psi)$ for $* \in \{\land, \lor, \supset, \equiv, =\}$ and $\mathrm{Q}\bar{\tau}_n.\, \varphi$ instead of $\mathrm{Q}(\lambda \tau_1.\, \dots \mathrm{Q}(\lambda \tau_n.\,\varphi))$ for $\mathrm{Q} \in \{\forall, \exists\}$. We call terms from $\Lambda(\Sigma^{\mathrm{HOL}})$ _HOL terms_, those of type $o$ _formulae_ ($\varphi, \psi, \chi$), and those of type $\tau {\to} o$ for $\tau \in \mathcal{T}$ _properties_ ($\Phi, \Psi$).
 
 ```elixir
-ShotDs.Hol.Definitions.signature()
+ShotDs.Hol.Definitions.signature
 ```
 
 <!-- livebook:{"output":true} -->
@@ -452,35 +500,39 @@ ShotDs.Hol.Definitions.signature()
 ["⊤", "⊥", "¬", "∨", "∧", "⊃", "≡", "=", "∀", "∃"]
 ```
 
-__Definition (Frame).__ A _frame_ $\mathcal{D} = (\mathcal{D}_\tau)_{\tau \in \mathcal{T}}$ is a collection of nonempty sets $\mathcal{D}_\tau$ such that $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$ and $\mathcal{D}_{\bar{\tau}_n\to\varsigma}$ is a set of functions mapping $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$.
+__Definition (Literal Negation).__ We write ${\sim}\varphi$ for the _literal negation_ of the formula $\varphi$, which is defined as stripping negation if present and adding it otherwise.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Henkin Model).__ A _Henkin model_ is a tuple $\mathcal{M} = (\mathcal{D}, \mathcal{I})$, where $\mathcal{D}$ is a frame for which $\mathcal{D}_{\bar{\tau}\to\sigma}$ may contain only a subset of all functions from $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$ as long as every term still denotes, and $\mathcal{I}$ is a family of typed interpretation functions mapping $c\langle\bar{\tau}\rangle : \upsilon$ for $c \in \Sigma^{\mathrm{HOL}}$ and $\upsilon \in \mathcal{T}$ to appropriate elements in $\mathcal{D}_\upsilon$. $\mathcal{I}$ is defined as follows:
+__Definition (Frame).__ A _frame_ $\mathcal{D} = (\mathcal{D}_\tau)_{\tau \in \mathcal{T}}$ is a collection of nonempty sets $\mathcal{D}_\tau$ such that $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$ and $\mathcal{D}_{\bar{\tau}_n {\to} \varsigma}$ is a set of functions mapping $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Henkin Model).__ A _Henkin model_ is a tuple $\mathcal{M} = (\mathcal{D}, \mathcal{I})$, where $\mathcal{D}$ is a frame for which $\mathcal{D}_{\bar{\tau} {\to} \sigma}$ may contain only a subset of all functions from $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$ as long as every term still denotes, and $\mathcal{I}$ is a family of typed interpretation functions mapping $c\langle\bar{\tau}\rangle : \upsilon$ for $c \in \Sigma^{\mathrm{HOL}}$ and $\upsilon \in \mathcal{T}$ to appropriate elements in $\mathcal{D}_\upsilon$. $\mathcal{I}$ is defined as follows:
 
 * $\mathcal{I}(\top) = \mathrm{T}$, $\mathcal{I}(\bot) = \mathrm{F}$
 * $\mathcal{I}(\neg)$ maps $\mathrm{T}$ to $\mathrm{F}$ and $\mathrm{F}$ to $\mathrm{T}$
 * $\mathcal{I}(\land)$, $\mathcal{I}(\lor)$, $\mathcal{I}(\supset)$ and $\mathcal{I}(\equiv)$ denote the standard Boolean functions for conjunction, disjunction, implication and equivalence
 * $\mathcal{I}(=\!\langle o\rangle) = \mathcal{I}(\equiv)$
 * $\mathcal{I}(=\!\langle \iota\rangle)$ denotes the Leibniz characterization of equality (two terms are equal if they share the same properties)
-* $\mathcal{I}(=\!\langle(\tau_0, \bar{\tau}_n) \!\to\! \varsigma\rangle)$ denotes the function that maps $(s, t)$ to $\mathrm{T}$ iff $\mathcal{I}(=\!\langle(\bar{\tau}_n \!\to\! \varsigma\rangle)$ maps $(s~X, t~X)$ to $\mathrm{T}$ for all $X \in \mathcal{D}_{\tau_0}$
+* $\mathcal{I}(=\!\langle(\tau_0, \bar{\tau}_n) {\to} \varsigma\rangle)$ denotes the function that maps $(s, t)$ to $\mathrm{T}$ iff $\mathcal{I}(=\!\langle(\bar{\tau}_n {\to} \varsigma\rangle)$ maps $(s~X, t~X)$ to $\mathrm{T}$ for all $X \in \mathcal{D}_{\tau_0}$
 * $\mathcal{I}(\forall\langle\tau\rangle)$ maps property $t$ to $\mathrm{T}$ iff it holds for all elements in $\mathcal{D}_\tau$
 * $\mathcal{I}(\exists\langle\tau\rangle)$ maps property $t$ to $\mathrm{T}$ iff it holds for some element in $\mathcal{D}_\tau$
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Denotation).__ Let $\mathcal{M} = (\mathcal{D}, \mathcal{I})$ be a Henkin model, $g$ be a variable assignemnt and $\bar{\xi}_k$ be a sequence of elements from $\mathcal{D}$. The _denotation_ of a HOL term $t : \tau$, denoted $[\![t]\!](\mathcal{M}, g, \bar{\xi})$ is an element in $\mathcal{D}_\tau$ defined recursively:
+__Definition (Denotation).__ Let $\mathcal{M} = (\mathcal{D}, \mathcal{I})$ be a Henkin model, $g$ be a variable assignment and $\bar{\xi}_k$ be a sequence of elements from $\mathcal{D}$. The _denotation_ of a HOL term $t : \tau$, denoted $[\![t]\!](\mathcal{M}, g, \bar{\xi})$ is an element in $\mathcal{D}_\tau$ defined recursively:
 
 * $[\![c]\!](\mathcal{M}, g, \bar{\xi}_k) = \mathcal{I}(c)$ for constant symbols $c \in \Sigma^{\mathrm{HOL}}$
 * $[\![X]\!](\mathcal{M}, g, \bar{\xi}_k) = g(X)$ for variables $X \in \mathcal{V}$
 * $[\![i]\!](\mathcal{M}, g, \bar{\xi}_k) = \xi_i$ for de Bruijn indices $i > 0$
 * $[\![s(\bar{t}_n)]\!](\mathcal{M}, g, \bar{\xi}_k) = \left([\![s]\!](\mathcal{M}, g, \bar{\xi}_k)\right) \left(\overline{[\![t_i]\!](\mathcal{M}, g, \bar{\xi}_k)}_n \right)$
-* $[\![\lambda\bar{\tau}_n.\, t : \bar{\upsilon}_m \!\to\! \varsigma]\!]^{\mathcal{M}, g, \bar{\xi}_k}$ is the function $f \in \mathcal{D}_{(\bar{\tau}_n, \bar{\upsilon}_m)\to\varsigma}$ such that for all $\bar{d}_n \in \overline{\mathcal{D}_{\tau_i}}_n$, $f(\bar{d}_n) = [\![t]\!]^{\mathcal{M}, g, (\overleftarrow{d}_n, \bar{\xi}_k)}$
+* $[\![\lambda\bar{\tau}_n.\, t : \bar{\upsilon}_m {\to} \varsigma]\!]^{\mathcal{M}, g, \bar{\xi}_k}$ is the function $f \in \mathcal{D}_{(\bar{\tau}_n, \bar{\upsilon}_m) {\to} \varsigma}$ such that for all $\bar{d}_n \in \overline{\mathcal{D}_{\tau_i}}_n$, $f(\bar{d}_n) = [\![t]\!]^{\mathcal{M}, g, (\overleftarrow{d}_n, \bar{\xi}_k)}$
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Satisfiability).__ A formula $\varphi$ is _satisfiable_ iff there exists a Henkin model $\mathcal{M}$ and a variable assignment $g$, such that $[\![\varphi]\!]^{\mathcal{M}, g, ()} = \mathrm{T}$. A set of formulae is satisfiable if all its elements are are jointly satisfiable under the same Henkin model and variable assignment. Conversely, a formula (or a set of formulae) is _unsatisfiable_ if no such model and variable assignment exists.
+__Definition (Satisfiability).__ A formula $\varphi$ is _satisfiable_ iff there exists a Henkin model $\mathcal{M}$ and a variable assignment $g$, such that $[\![\varphi]\!]^{\mathcal{M}, g, ()} = \mathrm{T}$. A set of formulae is satisfiable if all its elements are jointly satisfiable under the same Henkin model and variable assignment. Conversely, a formula (or a set of formulae) is _unsatisfiable_ if no such model and variable assignment exists.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Entailment and Validity).__ A formula $\psi$ is _entailed_ by a set of formulae $\Phi$, denoted $\Phi \vdash \psi$ if $\Phi \cup \{\neg \psi\}$ is unsatisfiable. A formula $\varphi$ is _valid_, denoted $\vdash \varphi$, iff $\varnothing \vdash \varphi$.
+__Definition (Entailment and Validity).__ A formula $\psi$ is _entailed_ by a set of formulae $\Delta$, denoted $\Delta \vdash \psi$ if $\Delta \cup \{\neg \psi\}$ is unsatisfiable. A formula $\varphi$ is _valid_, denoted $\vdash \varphi$, iff $\varnothing \vdash \varphi$.

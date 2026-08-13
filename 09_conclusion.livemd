@@ -1,0 +1,23 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 9: Conclusion
+
+## Summary
+
+[TODO]
+
+## What the Measurements Show
+
+[TODO: the reading of <a href="08_evaluation.livemd">Chapter 8</a>, stated without re-tabulating it.]
+
+## Limitations
+
+[TODO]
+
+## Future Work
+
+[TODO: candidates already named in earlier chapters, including the dual instantiation of definitions in the sense of TPS, a third `unfold_defs` mode, and further consumers of the evidence stream of <a href="06_architecture.livemd">Chapter 6</a>.]
+
+## Footnotes
+
+[TODO: cite]

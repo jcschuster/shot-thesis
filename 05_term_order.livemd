@@ -1,0 +1,271 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 5: Term Ordering
+
+```elixir
+Mix.install([
+  {:shot_tx, "~> 0.0.3"},
+  {:shot_to, "~> 0.1"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Overview
+
+Demodulation was introduced in <a href="03_tableaux.livemd">Chapter 3</a> as a branch-local simplification: an oriented equation $\ell \to r$ rewrites occurrences of $\ell$ to $r$, shrinking the branch's formula set without touching soundness or completeness. That "oriented" hid an obligation. Rewriting only terminates if the orientation is grounded in a well-founded order (otherwise $\ell \to r$ and $r \to \ell$ could alternate forever), and the rewrite is only sound if the order is stable under the substitutions a branch may still receive. This chapter supplies that order.
+
+The order is __NCPO-LNF__, the $\beta\eta$-long-normal Computability Path Order of Niederhauser and Middeldorp [TODO: cite Niederhauser & Middeldorp 2025]. It is a higher-order generalisation of the recursive path orders familiar from first-order superposition, adapted to operate directly on typed $\lambda$-terms in $\beta\eta$-long normal form. Two design decisions specific to this thesis frame the whole chapter:
+
+* Where the reference implementation leaves the order's parameters (precedences, statuses, accessibility) as _unknowns_ for an SMT solver to discharge while proving a rewrite system terminating, we _fix_ them as inputs and obtain a decidable boolean predicate on a single pair of terms. That is what a tableau prover needs: not a termination certificate for a whole system, but a yes/no orientation for one equation at a time.
+* The prover uses the order at _two_ strengths. The paper's order proper is sound but partial: it may refuse to orient a pair in either direction. That partiality is what _gating_ a rewrite requires, and what _choosing a canonical form_ cannot accept. The prover therefore layers a total heuristic extension over the sound core and is careful never to confuse the two. Keeping that distinction visible is the point of the final section, and it is what makes <a href="03_tableaux.livemd">Chapter 3</a>'s demodulation sound.
+
+## Requirements for an Orientation Order
+
+Recall the two properties a rewrite order carries. Well-foundedness rules out infinite descent, so rewriting to normal form terminates. Stability (closure under substitution) ensures that if $s \succ t$ then $s\theta \succ t\theta$ for every admissible $\theta$, so an orientation decided now survives the substitutions a branch's free variables may still receive under <a href="06_architecture.livemd">Chapter 6</a>'s global reconciliation. In the first-order setting a recursive path order built from a precedence on function symbols delivers both. The higher-order setting breaks the naive lifting in two places: terms carry $\lambda$-binders, so the order must descend under abstraction and handle bound variables; and terms carry types, so the order must respect a companion order on types to stay stable.
+
+NCPO-LNF addresses both. It assumes its inputs are in $\beta\eta$-long normal form, with every subterm fully $\eta$-expanded to its type's arity, which `shot_ds` already maintains, so the "LNF" precondition holds by construction and no normalisation step is needed before a comparison. Its recursion interleaves a term comparison with a companion _type_ comparison, and it opens $\lambda$-abstractions against fresh variables as it descends.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotTo` decides the single predicate $s >^1_\tau t$ of Definition 8 of the paper: given two term IDs in the $\beta\eta$-long-normal representation and a `%ShotTo.Parameters{}` struct, `ShotTo.gt?/3` returns a boolean. It is a drop-in decision procedure, not an SMT-constraint generator, which is the contrast the paper's Haskell reference draws, and the one this chapter turns on. Because each $\lambda$-opening allocates a fresh `shot_ds` free variable, the implementation wraps every top-level comparison in a term-factory scratchpad so those variables die when the comparison returns rather than accumulating in the global pool.
+
+## The Type Order
+
+The term order is stable only if it defers, at the leaves, to a well-founded order on types. NCPO-LNF uses the _admissible_ type order of the paper's Lemma 4 (itself Lemma 2.3 of the CPO paper [TODO: cite Blanqui/Jouannaud/Rubio 2015]).
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Admissible Type Order).__ Given a well-founded strict precedence $\succ_{\mathcal{S}}$ on base sorts, the admissible type order $\succ_{\mathcal{T}}$ is the smallest strict order on types containing $\succ_{\mathcal{S}}$ and the _right-argument_ relation $(\tau, \bar{\upsilon}) {\to} \varsigma \mathrel{\triangleright_r} \bar{\upsilon} {\to} \varsigma$, and closed under right-congruence: $\bar\upsilon {\to} \varsigma \succ_{\mathcal{T}} \bar{\upsilon}' {\to} \varsigma'$ implies $(\tau, \bar\upsilon) {\to} \varsigma \succ_{\mathcal{T}} (\tau, \bar{\upsilon}') {\to} \varsigma'$ for every $\tau \in \mathcal{T}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Intuitively: a function type dominates its own result type, and among two function types with the same argument prefix the one with the greater result type wins. On base sorts the order is just the user's sort precedence.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotTo.TypeOrder` implements this directly on the uncurried `%Type{goal: a, args: [t1, ..., tn]}` representation. `type_gt?/3` decides $\succ_{\mathcal{T}}$ and `type_geq?/3` its reflexive closure; the base-vs-base case consults `Parameters.sort_prec/2`, the function case peels the shared leading argument and recurses on the result type. Inside NCPO the comparison enters through `type_geq?/3`, where the `type_check?` flag on the internal `ncpo/6` predicate toggles whether $\tau(s) \succeq_{\mathcal{T}} \tau(t)$ must hold at a given node, corresponding to the paper's choice between $>^{b,X}$ and $>^{b,X}_\tau$. A term comparison that would otherwise succeed is vetoed when the types disagree the wrong way.
+
+```elixir
+import ShotDs.Hol.Definitions
+alias ShotDs.Data.Type
+alias ShotTo.{Parameters, TypeOrder}
+alias ShotDs.Util.LatexFormatter, as: LF
+
+# iota precedes o at the base level.
+params = Parameters.new sort_precedence: %{i: 0, o: 1}
+
+# o > iota at the base sorts (by precedence), and (iota -> o) > (iota -> iota)
+# by right-congruence, both in the type order.
+"""
+| Query                               | Result                              |
+| ----------------------------------- | ----------------------------------- |
+| $#{LF.format! type_o()} \\succ_\\mathcal{T} #{LF.format! type_i()}$       |\
+#{TypeOrder.type_gt? type_o(), type_i(), params}                            |
+| $(#{LF.format! type_io()}) \\succ_\\mathcal{T} (#{LF.format! type_ii()})$ |\
+#{TypeOrder.type_gt? type_io(), type_ii(), params}                          |
+| $#{LF.format! type_i()} \\succ_\\mathcal{T} #{LF.format! type_o()}$       |\
+#{TypeOrder.type_gt? type_i(), type_o(), params}                            |
+"""
+|> Kino.Markdown.new
+```
+
+> _The third entry is `false` because $\iota \prec o$: the type order is strict, and $\iota \succ_{\mathcal{T}} o$ does not hold._
+
+## The Ordering Parameters
+
+A concrete instance of NCPO-LNF is fixed by five pieces of data. Together they are the entire tunable surface of the order, and, as <a href="08_evaluation.livemd">Chapter 8</a> will exploit, the entire surface the ablation study varies when it studies the order's effect.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Ordering Parameters).__ An NCPO-LNF instance is given by:
+
+* a well-founded strict order $\succ_{\mathcal{S}}$ on base sorts;
+* a precedence $\succsim_{\mathcal{F}}$ on constants, with strict part $\succ_{\mathcal{F}}$ and equivalence $\simeq_{\mathcal{F}}$;
+* a _status_ $\mathrm{stat}(f) \in \{\mathsf{lex}, \mathsf{mul}\}$ per constant, selecting lexicographic or multiset comparison of argument lists under equal heads;
+* a _basicness_ predicate $\mathrm{basic}(a)$ on base sorts;
+* an _accessibility_ predicate $\mathrm{Acc}(f, i)$ on argument positions.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The first three are the familiar RPO knobs lifted to the typed higher-order setting. Basicness and accessibility are the higher-order additions: they control the _computability_ machinery, meaning which subterms may be descended into while preserving stability, and their soundness depends on compatibility conditions (the paper's Definitions 5 & 6) relating them to the type precedence.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotTo.Parameters` holds these as `sort_precedence`, `const_precedence`, `status`, `basic_sorts`, and `accessible`. Each accepts a map, a `MapSet`, or a predicate function, so a caller can be as coarse or as fine-grained as needed. Precedences are given as integer ranks: larger means greater, equal means $\simeq_{\mathcal{F}}$. The lookup helpers `prec/2`, `sort_prec/2`, `status/2`, `basic?/2`, `accessible?/3`, together with `gt?/3` and `equiv?/3` on constants, are what the core predicate calls.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Note that `ShotTo`'s own defaults are _permissive to the point of uselessness_: all sorts basic and equivalent, all positions accessible, all constants equivalent with `:lex` status. Under them NCPO collapses to the bare subterm order plus lexicographic comparison inside shared heads and almost nothing is oriented. The defaults are chosen this way so the API is usable out of the box while every _meaningful_ orientation forces the caller to supply at least a constant precedence. A caller that forgot to configure the order would find demodulation silently doing nothing, not silently doing something unsound.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The prover is such a caller, and it supplies exactly that one parameter. `ShotTx.Data.Parameters` carries `term_order: %ShotTo.Parameters{const_precedence: &:erlang.phash2/1}`: every constant name gets a stable hash-based rank, so the precedence is total and well-founded on symbols and NCPO-LNF can orient equations between arbitrary distinct constants, including parameters minted during $\delta$, which have no meaningful name to rank by. Status, basicness and accessibility stay at their permissive defaults. A user-supplied map or function overrides the whole struct.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Moreover, on soundness of the parameters themselves: NCPO-LNF's stability depends on $\mathrm{Acc}$ and $\mathrm{basic}$ satisfying the compatibility conditions with the chosen type precedence. `ShotTo` does not enforce these, it trusts the caller but offers `Parameters.validate/2` as a best-effort check, and documents a _vacuously sound_ fallback: leaving `accessible: :all` and `basic_sorts: :all` makes the compatibility conditions hold trivially, at the cost of a more conservative (weaker) order. The prover takes this conservative-but-safe route, which is the right trade for a soundness-critical component.
+
+## The Order
+
+With types and parameters in place, the term order is a mutual recursion over the shapes of the two terms. Rather than the full rule set of Definition 8 in [TODO: cite NCPO-LNF], we name the rules that fire and let the implementation stand as the precise statement.
+
+The comparison $s >^1_\tau t$ first checks $\tau(s) \succeq_{\mathcal{T}} \tau(t)$, then dispatches on the shape of $s$:
+
+* __$s$ has a constant head__ $f(\bar{t})$. Three families of rules apply in order. $\langle \mathcal{FX} \rangle$ closes immediately if $t$ is one of the fresh variables introduced while descending under a $\lambda$ on the right. $\langle \mathcal{F}\triangleright\rangle$ succeeds if some argument $t_i$ of $s$ already dominates $t$ through the _accessible-subterm_ relation, the higher-order rule that a term is greater than its subterms, routed through accessibility and basicness. Failing those, the comparison dispatches on $t$:
+  * against another constant head $g(\bar{u})$: if $f \simeq_{\mathcal{F}} g$ with equal status, compare the argument lists by that status ($\langle \mathcal{F}{=}_\mathsf{lex}\rangle$ / $\langle \mathcal{F}{=}_\mathsf{mul}\rangle$); if $f \succ_{\mathcal{F}} g$, require $s$ to dominate every argument of $t$ ($\langle \mathcal{F}{\succ}\rangle$);
+  * against a variable-headed $y(\bar{u})$: the $\langle \mathcal{FV}\rangle$ rule, which fires only at the top recursion level, requiring $s$ to dominate the $\eta$-expanded head and each argument;
+  * against an abstraction $\lambda \tau.\,v$: the $\langle \mathcal{F}\lambda\rangle$ rule opens $t$ on a fresh variable added to the auxiliary set and recurses.
+* __$s$ is an abstraction__ $\lambda \tau.\,u$. The $\langle\lambda\triangleright\rangle$ rule opens $s$ and checks whether its body already dominates $t$; otherwise, if $t$ is also an abstraction, $\langle\lambda{=}\rangle$/$\langle\lambda{\neq}\rangle$ align the two binders (reusing the same fresh variable when their types agree) and recurse.
+* __$s$ is variable-headed.__ No rule makes a variable-headed term greater than anything; the order never orients _out of_ a flex term, which is what keeps it stable under the substitutions those variables may receive.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotTo.Ncpo.ncpo_gt?/3` is the entry point; the internal `ncpo/6` carries the paper's two extra parameters explicitly: the level $b \in \{0,1\}$ (some rules, among them $\langle\mathcal{FV}\rangle$, fire only at $b = 1$) and the auxiliary variable set $X$ that accumulates the fresh variables minted by $\lambda$-openings. The rule names above match the implementation's private functions (`fx_rule?`, `f_subterm_rule?`, `ncpo_ff_case`, `ncpo_fv_rule`, `ncpo_flam_rule`, `ncpo_lam_head`) and the computability helpers `bawo`/`awo`/`sswo` mirror the auxiliary relations of the reference. The last bullet is enforced structurally: `dispatch_on_s` returns `false` whenever $s$'s head is not a constant and $s$ is not an abstraction.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Two worked comparisons. First the subterm rule (a term is greater than a constant nested in its arguments) which needs only a constant precedence:
+
+```elixir
+import ShotDs.Hol.Sigils
+alias ShotDs.Stt.TermFactory, as: TF
+
+prec = Parameters.new const_precedence: %{"f" => 1, "c" => 0}
+
+{fc, c} = with_context ~e[c: $i, f: $i>$i], fn ->
+  {~g(f @ c), ~g(c)}
+end
+
+# f(c) > c by the accessible-subterm rule (c is an accessible subterm);
+# the converse fails.
+"""
+| Query                               | Result                              |
+| ----------------------------------- | ----------------------------------- |
+| $#{LF.format! fc, hide_types: true} > #{LF.format! c, hide_types: true}$  |\
+#{ShotTo.gt? fc, c, prec}                                                   |
+| $#{LF.format! c, hide_types: true} > #{LF.format! fc, hide_types: true}$  |\
+#{ShotTo.gt? c, fc, prec}                                                   |
+"""
+|> Kino.Markdown.new
+```
+
+The precedence rule states that a term headed by a greater constant dominates one headed by a lesser, provided it dominates the lesser term's arguments:
+
+```elixir
+# g outranks h in the constant precedence. Then g(c) > h(c) by the precedence
+# rule, since g(c) > c handles h's argument.
+prec2 = Parameters.new const_precedence: %{"g" => 2, "h" => 1, "c" => 0}
+
+{gc, hc} = with_context ~e[g: $i>$i, h: $i>$i], fn ->
+  {~g(g @ c), ~g(h @ c)}
+end
+
+"""
+| Query                               | Result                              |
+| ----------------------------------- | ----------------------------------- |
+| $#{LF.format! gc, hide_types: true} > #{LF.format! hc, hide_types: true}$ |\
+#{ShotTo.gt? gc, hc, prec2}                                                 |
+| $#{LF.format! hc, hide_types: true} > #{LF.format! gc, hide_types: true}$ |\
+#{ShotTo.gt? hc, gc, prec2}                                                 |
+"""
+|> Kino.Markdown.new
+```
+
+> _Both examples supply only a constant precedence and rely on the vacuously-sound `accessible: :all` / `basic_sorts: :all` defaults, which is the configuration the prover itself uses._
+
+## No Transitivity: One Pair at a Time
+
+An important caveat, because it shapes how the prover is allowed to use the order: __NCPO-LNF is not (yet known to be) transitive.__ It is well-founded and stable, the two properties a _reduction_ order needs, but transitivity is an open question. The practical consequence is sharp: the order may be used to decide the orientation of _one pair at a time_, but must not be used as a comparator to sort a list of terms or to build a total order over a set, because sorting silently assumes transitivity. `ShotTo`'s public surface reflects this: it offers `gt?/3`, `geq?/3`, and a four-valued `compare/3`, but no `sort` and no claim of a total order.
+
+This is not a limitation the prover can engineer around; it is a property of the order. What the prover _can_ do is confine every use to pairwise orientation decisions, which is all demodulation and connective normalisation actually require. The next section is how that confinement is arranged.
+
+## The Total Prover-Side Wrapper
+
+The paper's order is sound but _partial_: for many pairs it answers neither $s \succ t$ nor $t \succ s$. `ShotTo.compare/3` surfaces this honestly as a fourth verdict, `:incomparable`, alongside `:greater`, `:less`, and `:equal`. Partiality is a feature when the question is "may I rewrite $\ell$ to $r$?", the safe answer to an incomparable pair is _no, block the rewrite_; and a nuisance when the question is "which of these two commutative arguments is the canonical left?", where any deterministic answer will do. `ShotTx.Prover.TermOrder` serves both needs with two clearly separated layers.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__The sound layer.__ `strict_gt?/3` is a direct passthrough to `ShotTo.gt?/3`, NCPO-LNF unmodified. By the paper's Theorem 2 the pair (NCPO-LNF, CPO) is a $\beta\eta$-normal higher-order reduction order: well-founded on $\beta\eta$-long-normal terms, monotone, and stability-compatible under $\beta\eta$-long-normal substitutions. This is the _only_ decision suitable for gating a rewrite. It may return `false` both ways for the same pair, and every caller must be prepared to block the step in that case.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> This is what <a href="03_tableaux.livemd">Chapter 3</a>'s demodulation relies on. `ShotTx.Prover.Demodulation` rewrites a subterm to an equation's right-hand side only when `TermOrder.strict_gt?(lhs, rhs, order)` holds. Every rewrite step strictly decreases the term in a well-founded order, so rewriting to normal form terminates, and equations that fail the strict gate contribute no rewrite rule at all (`demodulation.ex`). The termination argument is therefore not an external claim about the prover but a local invariant enforced at each rewrite. The order is one of the two independent filters on <a href="03_tableaux.livemd">Chapter 3</a>'s $\mathcal{E}(B)$; the other, groundness, is a refutational condition and has nothing to do with the order.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__The heuristic layer.__ `compare/3` and `gt?/3` wrap `ShotTo.compare/3` and, only on `:incomparable`, break the tie deterministically, first by alphabetic order on the printed term, then by the raw integer term IDs. The result is _total_ and decidable, but is __not__ in general a reduction order: it is not guaranteed well-founded or monotone. It exists for exactly one job, which is picking a canonical direction where any consistent choice suffices, and must never gate a rewrite.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The prover uses this heuristic layer in exactly two places, both cosmetic. `orient_pair` in `branch.ex` stores an equation $\ell = r$ by trying `strict_gt?` in each direction first, and _only if both fail_ falls back to the heuristic `gt?` to pick a storage direction. The connective-canonicalisation cases ($\lor$, $\land$, $\equiv$, $=$) use `gt?` purely to decide whether to swap the two sides into a fixed order; that pass is governed by the `orient` parameter. `:none` (the default) skips it entirely, `:shallow` normalises only each formula's outermost connective, `:deep` recurses bottom-up through every nested commutative connective, including those inside atom arguments. In both places the choice affects which syntactic representative is stored, never whether a logically-significant rewrite fires. Conflating the two layers would be the classic superposition bug: orienting a rewrite by a non-well-founded relation, and losing termination. Keeping them apart should keep demodulation sound.
+
+<!-- livebook:{"break_markdown":true} -->
+
+We can watch the layers diverge. Under a precedence that leaves two unrelated constants incomparable, the sound layer refuses to orient the pair while the heuristic layer still returns a deterministic direction:
+
+```elixir
+alias ShotTx.Prover.TermOrder
+import ShotDs.Hol.{Definitions, Dsl}
+
+# a and b are equivalent in precedence (both rank 0) and unrelated by
+# structure, so NCPO-LNF cannot orient {a, b} either way.
+flat = Parameters.new const_precedence: %{"a" => 0, "b" => 0}
+
+a = const "a", type_i()
+b = const "b", type_i()
+
+[
+  :sound_a_gt_b, TermOrder.strict_gt?(a, b, flat),
+  :sound_b_gt_a, TermOrder.strict_gt?(b, a, flat),
+  :heuristic_compare, TermOrder.compare(a, b, flat)
+]
+|> Kino.Layout.grid(columns: {1, 1})
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:sound_a_gt_b
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:sound_b_gt_a
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:heuristic_compare
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:less
+```
+
+> _Both `strict_gt?` queries are `false`. NCPO-LNF declines to orient the pair, so demodulation between $a$ and $b$ is correctly blocked. The heuristic `compare` still returns `:less` (here by alphabetic tie-break, $a < b$), which is fine for choosing a canonical connective side and would be unsound as a rewrite gate._
+
+## Summary and Forward Pointers
+
+NCPO-LNF gives the tableau a higher-order reduction order that is well-founded and stable, enough to make demodulation terminating and sound. The order is decided pairwise as a boolean predicate over fixed parameters rather than solved as an SMT termination problem. The prover consumes it at two strengths: the sound, partial `strict_gt?` gates every rewrite, and a total heuristic extension is confined to cosmetic orientation of commutative connectives. Its main open problem, non-transitivity, is contained by only ever asking pairwise questions.
+
+Why the stability property carries weight rather than being incidental is shown in <a href="06_architecture.livemd">Chapter 6</a>: because branch-level rules never commit free-variable substitutions and the substitution arrives only later, from global reconciliation, an orientation decided on a branch must survive that late substitution. <a href="08_evaluation.livemd">Chapter 8</a>'s ablation study varies the parameters of this order (constant precedence, status, the accessibility and basicness fallbacks) among its knobs, measuring how much orientation strength the prover actually needs.
+
+## Footnotes
+
+[TODO: consolidate citations: Niederhauser & Middeldorp 2025 (*NCPO goes Beta-Eta-Long Normal Form*, Definition 8, Lemma 4, Theorem 2); Blanqui, Jouannaud & Rubio 2015 (CPO, Lemma 2.3); reference implementation `hrsterm`/`OrderingLnf.hs`.]

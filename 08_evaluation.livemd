@@ -1,0 +1,50 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 8: Evaluation
+
+```elixir
+Mix.install([
+  {:shot_tx, "~> 0.0.3"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Overview
+
+[TODO]
+
+## Method
+
+[TODO: benchmark set, hardware, timeout, how a run is scored, how variance is handled.]
+
+## Baseline
+
+[TODO: the default configuration of <a href="06_architecture.livemd">Chapter 6</a>, against which every ablation is read.]
+
+## Ablating the Agents
+
+[TODO: `contradiction_agent`, `suggestions_enabled`, `model_agent_backend`, one at a time. The three layers are described in <a href="07_extensions.livemd">Chapter 7</a>.]
+
+## Ablating the Calculus
+
+[TODO: `atom_decomposition`, `primitive_substitution`, `finite_o_quantification`, `instance_based_gamma`, `demodulation`, `beta_variant`, `eager_unfold_defs`. The rules are defined in <a href="03_tableaux.livemd">Chapter 3</a>.]
+
+## Ablating the Search Control
+
+[TODO: `iterative_deepening`, `formula_cost_strategy`, and the serial worker pool at `worker_pool_size: 1`.]
+
+## Parameter Sweeps
+
+[TODO: numeric sweeps at three values each, including `unification_depth` from <a href="04_unification.livemd">Chapter 4</a> and the term-order parameters of <a href="05_term_order.livemd">Chapter 5</a>.]
+
+## Scaling with the Worker Pool
+
+[TODO]
+
+## Threats to Validity
+
+[TODO]
+
+## Footnotes
+
+[TODO: cite]

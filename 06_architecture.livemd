@@ -1,0 +1,282 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 6: A Concurrent Actor-Based Architecture
+
+```elixir
+Mix.install([
+  {:shot_tx, "~> 0.0.3"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Overview
+
+The previous three chapters described a calculus and its term-level machinery: tableau rules that expand a branch (<a href="03_tableaux.livemd">Chapter 3</a>), a unification procedure that decides disagreement (<a href="04_unification.livemd">Chapter 4</a>), an order that gates rewriting (<a href="05_term_order.livemd">Chapter 5</a>). None of them said _how the search is run_. This chapter does, and the answer is the thesis's central contribution: the tableau is executed not as a single backtracking loop but as a population of concurrent actors on the BEAM, coordinated through shared memory and a published stream of evidence.
+
+The design is not concurrency for its own sake. It falls out of a single logical constraint: the _rigidity_ of free variables across branches, which forces a separation between what a branch may decide locally and what must be decided globally. Once that separation is made, the global decision is naturally a distinct process, the local expansions are naturally parallel, and the whole becomes an actor system almost by necessity. The chapter is organised around that argument: first the constraint, then the architecture it implies, then the message flow that ties it together, and finally the two peer agents that exploit the same evidence stream for satisfiability and heuristic guidance.
+
+## The Rigid Variable Problem
+
+Everything begins with one fact about free-variable tableaux. When the $\gamma$-rule instantiates a universally quantified formula, it introduces a _free variable_ $X$ standing for a witness to be determined later, and branch closure then amounts to finding a substitution that makes complementary literals unify. The variable is _rigid_: it denotes the same term everywhere it occurs. If the left branch of a split closes only under $X \mapsto a$ and the right branch closes only under $X \mapsto b$ with $a \neq b$, the tableau is _not_ closed, because no single $X$ satisfies both. A proof requires _one_ global substitution that closes _every_ open branch simultaneously. This is what makes naive parallelism unsound.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Proposition (Unsoundness of locality for rigid variables).__ A branch that commits to a local substitution $X \mapsto t$, using it to close itself, can render the whole search either unsound or incomplete: unsound, if a sibling branch later closes under a substitution inconsistent with $X \mapsto t$ yet the search reports success; incomplete, if the local commitment pre-emptively constrains a variable that a sibling needed to bind differently, so that a global solution which exists is never found.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The consequence is a strict discipline, stated identically across the prover's rewriting and branch modules:
+
+> _No branch-level rule may commit to a value for any free variable._ Every $\theta$-commitment is recorded as _evidence_, not applied. The reconciliation of all such evidence into a single global pre-unifier is performed elsewhere, once, over all open branches at once. This is why <a href="03_tableaux.livemd">Chapter 3</a>'s demodulation admits only rewrites with the _empty_ matcher (the equation's LHS must be structurally identical to the target, no $\theta$), and why <a href="05_term_order.livemd">Chapter 5</a>'s order must be _stable_ under substitution: an orientation decided on a branch has to survive the global substitution that arrives later. [TODO: \ref ch3-demodulation, ch5-stability]
+
+<!-- livebook:{"break_markdown":true} -->
+
+Read architecturally, the discipline partitions the work into two kinds. _Local, parallelisable_ work: expanding a branch by the tableau rules, collecting the literal pairs that _could_ close it. _Global, serialised_ work: taking the closure options from all branches and finding one substitution that satisfies them together. The first kind has no cross-branch dependency (a branch expands using only its own formulas) so it may run on as many processes as there are branches. The second kind is a single constraint-satisfaction problem over shared state. That partition is the architecture; the rest of the chapter is its realisation on OTP.
+
+## The Supervision Tree
+
+A proof is a _session_. Each call to the prover spins up a fresh supervision tree, runs the search, returns the verdict, and tears the tree down. The tree's shape encodes the local/global partition directly, and it is declared in one place (`SessionSupervisor.init/1`) whose child list is given verbatim below, since the order of the children and the restart strategy both matter:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+# ShotTx.Prover.SessionSupervisor.init/1 (children, in start order)
+children = [
+  {ShotTx.Prover.EtsKeeper, {session_id, params}},
+  {Task.Supervisor, name: via(session_id, :task_supervisor)},
+  {ShotTx.Prover.Manager, {session_id, formulas, defs, params}},
+  {ShotTx.Prover.ContradictionAgent, {session_id, params}},
+  {ShotTx.Prover.SuggestionAgent, {session_id, params}},
+  {ShotTx.Prover.ModelAgent, {session_id, params}},
+  # DynamicSupervisor for the worker pool (started last)
+  worker_pool_child(session_id)
+]
+
+Supervisor.init(children, strategy: :rest_for_one)
+```
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The `EtsKeeper` is first because it owns the session's shared, public ETS tables (`:work_queue`, `:idle_queue`, `:tombs`, `:traces`, `:provenance`, `:stats`, `:suggestions`) and every other process fetches its table references from it. Next come the `Task.Supervisor` that isolates the asynchronous CSP dispatches, the `Manager` that orchestrates the search, and the three peer agents: the `ContradictionAgent` ($\mathcal{CA}$), the `SuggestionAgent` ($\mathcal{SA}$) and the `ModelAgent` ($\mathcal{MA}$), which are named by those symbols throughout. The worker pool's `DynamicSupervisor` is last. This diagram shows the same tree:
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+Kino.Mermaid.new("""
+graph TD
+  SS["SessionSupervisor<br/>(:rest_for_one)"]
+  EK["EtsKeeper<br/>owns session tables"]
+  TS["Task.Supervisor<br/>async CSP dispatches"]
+  MG["Manager<br/>orchestration + deepening"]
+  CA["ContradictionAgent<br/>global closure (CSP)"]
+  SA["SuggestionAgent<br/>heuristic hints (opt-out)"]
+  MA["ModelAgent<br/>satisfiability probes (opt-in)"]
+  BS["DynamicSupervisor<br/>worker pool"]
+  W1["Worker 1"]
+  W2["Worker 2"]
+  WN["Worker N"]
+
+  SS --> EK
+  SS --> TS
+  SS --> MG
+  SS --> CA
+  SS --> SA
+  SS --> MA
+  SS --> BS
+  BS --> W1
+  BS --> W2
+  BS --> WN
+
+  classDef keeper fill:#e3f2fd,stroke:#1565c0,color:#0d47a1;
+  classDef agent fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+  classDef worker fill:#eeeeee,stroke:#999999,color:#333333;
+  class EK keeper;
+  class CA,SA,MA agent;
+  class W1,W2,WN worker;
+""")
+```
+
+Both the order of children and the restart strategy carry meaning. `SessionSupervisor` uses `:rest_for_one`: children are started in the listed order, and if one crashes, it and everything started _after_ it restart, while everything started _before_ it stays untouched. The `EtsKeeper` comes first so that it survives a crash of any downstream process, since the tables holding statistics, traces, and the work queue outlive a Manager or agent failure and remain available for post-mortem inspection. The worker pool comes last, under its own `DynamicSupervisor`, because workers are the most numerous and the most disposable.
+
+> `ShotTx.Prover.SessionSupervisor.init/1` lists these children in this order, with `strategy: :rest_for_one`. The whole tree is addressed through a `Registry` keyed on `{session_id, name}`, so multiple proof sessions run concurrently in one VM without colliding. The prover is itself safe to call from parallel callers. The public `ShotTx.Prover.prove/*` starts one tree under the top-level `ShotTx.SessionSpawner`, blocks synchronously on the Manager until the search terminates, and lets the tree shut down.
+
+## Pure Branch Logic, Stateful Shell
+
+Workers are where the tableau rules actually fire, and their design is the second decision of consequence after the rigidity discipline. A worker is a long-lived process that repeatedly _steals_ a branch from the work queue, expands it one step, and deals with the result. The expansion itself, however, is written as a _pure function_ that touches no process state and performs no side-effects; it returns a description of what should happen, and the worker carries it out (Outbox pattern).
+
+<!-- livebook:{"break_markdown":true} -->
+
+`Branch.step/4` takes a branch and the current search bounds and returns one of a fixed set of _results_, each a plain data value. The calculus is <a href="03_tableaux.livemd">Chapter 3</a>'s rule set, and the result kinds are only the shapes into which the shell must dispatch:
+
+* `{:continue, branch', effect}`: the branch advanced; `effect` is a (possibly empty) intended side-effect for the shell to run;
+* `{:split, a, b}`: a $\beta$-style branch into two siblings;
+* `{:instantiate, branches}`: a constant/parameter instantiation fan-out into several branches;
+* `{:closed, branch'}`: the branch closed by a ground contradiction;
+* `{:idle, branch'}`: the queue is empty but $\gamma$-rules are parked; wait for deepening;
+* `{:saturated, {defs, literals}}`: the queue is empty and `model_certain?/2` holds: the branch is open, and its literals are a candidate countermodel;
+* `{:exhausted, branch'}`: the queue is empty and `model_certain?/2` fails: no rule remains, but satisfiability is undecided.
+
+<!-- livebook:{"break_markdown":true} -->
+
+This purity makes the concurrency tractable. Because `step/4` is a pure function of a branch, a branch can be moved between processes freely, re-run deterministically, traced without instrumentation, and reasoned about in isolation from the scheduler. All the genuinely hard concurrency lives in the thin shell that interprets the seven results; the logic of the calculus lives in a function that never sees a process.
+
+> `ShotTx.Prover.Branch` is documented as the pure functional core. `ShotTx.Prover.Worker` is the shell: `checkout_work/1` steals a `{priority_key, branch}` from the `:work_queue` ETS table, `step/4` runs, and `handle_step_result/2` dispatches. Splits and instantiations push their new branches back onto the queue with `push_work/3`; every lifecycle result also publishes the branch's trace to the `:traces` table and _broadcasts an evidence message_ (below). The two effect kinds a `:continue` may carry (`{:notify_ca, clashes}` and `{:record_provenance, records}`) are exactly the two writes a branch is allowed to request but not perform itself. To stay responsive, a worker yields after a bounded number of steps rather than running a branch to completion, so no single branch can starve the pool.
+
+The worker never binds a free variable. When a branch discovers that a literal pair _would_ close it under some unifier, the worker does not unify and commit; it broadcasts `{:local_clashes, branch_id, clashes}` and moves on. The commitment is the concern of $\mathcal{CA}$.
+
+## The Evidence Stream
+
+The channel between workers and $\mathcal{CA}$ is a published stream rather than a direct call. Every worker, on every branch lifecycle event, broadcasts one message to a per-session PubSub topic named <code>branch_evidence_\<session\></code>. Two agents subscribe to that topic and receive every message independently; neither the worker nor the topic knows who is listening.
+
+The published events are exactly the branch lifecycle: `{:branch_split, parent_id, child_ids}`, `{:branch_closed, branch_id}`, `{:branch_saturated, branch_id, {defs, literals}}`, `{:branch_exhausted, branch_id}`, and `{:local_clashes, branch_id, clashes}`.
+
+Publishing rather than calling decouples the two sides by design, at a cost the design accepts openly. Because the worker-agent edge is a broadcast, not a synchronous call, the BEAM's per-pair message-ordering guarantee no longer serialises events across _different_ workers. A `:branch_closed` for a child can arrive at a subscriber _before_ the `:branch_split` that announced the child existed. Both $\mathcal{CA}$ and $\mathcal{SA}$ are written to tolerate exactly this: the split handler excludes any child already recorded as closed, and the closure handler tolerates branches it has never seen as active. The prover trades a strict ordering guarantee for the decoupling of a published stream, and pays for it with defensive handlers rather than with a synchronisation bottleneck.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The broadcast goes through a `Registry` dispatch on `ShotTx.Prover.PubSub` to the `"branch_evidence_#{session_id}"` topic (`Worker.broadcast_evidence/2`); $\mathcal{CA}$ and $\mathcal{SA}$ each `Registry.register` on that topic in their `init/1`. The moduledoc names the out-of-order case: a child's closure overtaking its parent's split, and both handlers guard against it. Manager commands (`:settle`, `:verify_all_closed`, `:verify_csa`, `:verify_exhausted`) still arrive as direct `GenServer` calls and casts, because those are _coordination_, not evidence: the distinction between "broadcast evidence, many listeners" and "direct command, one recipient" runs right through the design.
+
+## Global Closure as Constraint Satisfaction
+
+$\mathcal{CA}$ accumulates, from the evidence stream, one thing per open branch: the set of literal pairs that _could_ close that branch, each pair carrying the unification problem whose solution would close it. Global closure is then a constraint-satisfaction problem: choose, for each open branch, _one_ of its closing options, such that the chosen options' unification problems have a _common_ solution.
+
+Here the architecture closes a loop with <a href="04_unification.livemd">Chapter 4</a>. The CSP is not solved by a bespoke solver. It is solved by handing the _union_ of the chosen options' equations to the very pre-unification procedure of <a href="04_unification.livemd">Chapter 4</a> and asking for a single solution. If one exists, it is a global pre-unifier closing every branch; if none does across all choices, the tableau is not yet closed.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Global closure).__ Let each open branch $b_i$ contribute a set $O_i$ of closing options, each option a set of unification equations. A _global closure_ is a choice $o_i \in O_i$ for each $i$ together with a single pre-unifier $\Theta$ of $\bigcup_i o_i$. The tableau is closed iff such a choice and pre-unifier exist.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> $\mathcal{CA}$'s internal `find_global_closure/2` sorts the per-branch option lists by size, forms their cartesian product lazily, and for each combined choice runs `ShotUn.unify(Enum.concat(choice), depth) |> Enum.take(1)`, which is <a href="04_unification.livemd">Chapter 4</a>'s lazy stream, asked for its first element. The first choice whose union unifies wins. Two economies matter: the cartesian product is a lazy `Stream`, so it stops at the first success without materialising every combination; and the unification stream is truncated at one solution, so the CSP pays for existence, not enumeration. The search depth is the session's `unification_depth`, the same bound <a href="04_unification.livemd">Chapter 4</a> described, so raising it under iterative deepening deepens both the branch-level and the global unification in lock-step.
+
+<!-- livebook:{"break_markdown":true} -->
+
+A closed branch is _removed_ from the active set the moment its closure is recorded: a closed branch no longer constrains the CSP, and leaving it in would force the solver to pick a dummy option for it, inflating the cartesian product. When the active set empties, every leaf has discharged itself and the tableau is closed under the empty substitution, reported internally as `:unsat` (the negated conjecture is unsatisfiable, i.e. the conjecture is a theorem).
+
+The CSP is dispatched on a supervised `Task` (this is what the `Task.Supervisor` in the tree is for) so that a long solve does not block $\mathcal{CA}$ from ingesting new evidence, and it runs eagerly after every clash or split as long as no other solve is in flight. The prover tries to close the tableau at the earliest possible moment, not only when the search runs dry.
+
+## The Message Flow
+
+The pieces now assemble into a single choreography. The sequence below traces one branch from checkout to a global closure that ends the session. It is the load path of the whole prover: the worker expands and broadcasts, $\mathcal{CA}$ accumulates and solves, the Manager adjudicates and returns.
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+Kino.Mermaid.new """
+sequenceDiagram
+  participant C as Caller
+  participant MG as Manager
+  participant WQ as work_queue (ETS)
+  participant W as Worker
+  participant PS as branch_evidence PubSub
+  participant CA as ContradictionAgent
+  participant TS as Task.Supervisor
+
+  C->>MG: prove(conjecture)
+  MG->>WQ: seed root branch
+  MG->>W: spawn N workers
+
+  loop until closed / stalled / timeout
+    W->>WQ: checkout branch
+    Note over W: Branch.step/4 (pure)
+    alt branch splits
+      W->>WQ: push child branches
+      W->>PS: broadcast {:branch_split, parent, children}
+    else branch has closing options
+      W->>PS: broadcast {:local_clashes, branch, options}
+    else branch closes on ground contradiction
+      W->>PS: broadcast {:branch_closed, branch}
+    end
+    PS-->>CA: deliver evidence
+    CA->>TS: dispatch CSP (union of one option per open branch)
+    Note over TS: ShotUn.unify(...) |> take(1)
+    alt common unifier found
+      TS-->>CA: {:ok, theta}
+      CA->>MG: {:proof_result, {:unsat, theta}}
+      MG-->>C: {:thm, proof}
+    else no global unifier yet
+      TS-->>CA: :error
+      Note over CA: keep accumulating evidence
+    end
+  end
+
+  Note over MG: workers all idle, trigger deepening
+  MG->>W: {:wake_up, new_gamma, new_prim_depth}
+"""
+```
+
+Three features of this flow carry the architecture. First, the worker and $\mathcal{CA}$ never call each other. The worker's only outbound communication about closure is a broadcast; $\mathcal{CA}$'s only inbound is a subscription. Either could be replaced, duplicated, or (in $\mathcal{CA}$'s case) joined by a second subscriber without changing a line of the worker. That is what $\mathcal{SA}$ and $\mathcal{MA}$ do. Second, the CSP fires _eagerly and asynchronously_. Every piece of new evidence can trigger a solve, and the solve runs on a Task so $\mathcal{CA}$ stays live. The prover is therefore always trying to finish, and never single-threaded on the closure check. Third, the Manager's role in the steady state is small (seed, spawn, adjudicate the final result) and grows only when the search stalls.
+
+## Iterative Deepening
+
+The search bounds of <a href="03_tableaux.livemd">Chapter 3</a> (the $\gamma$-instantiation limit and the primitive-substitution depth) are not fixed for a session. They start low and are _raised_ when the search saturates, so the prover spends its budget on shallow proofs first and only pays for depth when forced. In this architecture, deepening is a coordination event, not a restart.
+
+When a worker finds no applicable rule within budget, it parks the branch on the `:idle_queue` and reports idle to the Manager. When _all_ workers are idle, the Manager adjudicates before it deepens, and what it does depends on why the pool stalled. If some branch saturated, it asks the CA to check the candidate countermodel. If branches are merely parked, it asks the CA to _settle_: one last CSP over the parked state, in case a global closure exists that no single branch could see. Only if that fails does it increment the $\gamma$ and prim-subst limits and broadcast `{:wake_up, new_gamma, new_prim_depth}` to the workers, which pull their parked branches back off the idle queue and resume from where they stopped. If nothing is parked but some branch is exhausted, it asks for one final closure check before answering `:unknown`; and if nothing is parked or exhausted, every branch has discharged itself and it asks the CA to verify that. Nothing is recomputed in any of these paths; deepening is applied at the frontier where the previous bound was exhausted.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `Manager.check_and_trigger_deepening/1` fires when the idle-worker set becomes full and dispatches on that four-way condition, in the order saturated $\to$ parked $\to$ exhausted $\to$ all-closed; parked branches are checked before exhausted ones because an exhausted branch is a dead end for itself, not for the tableau. `deepen_or_report_unknown/1` either reports `:unknown` (if iterative deepening is disabled, an ablation knob) or raises the limits and wakes the pool. The settle call is bounded by whatever remains of the proof's own deadline rather than run to completion: while the Manager blocks on it, it cannot process its own `:timeout`, and the CSP it is waiting for is an exponential cartesian product. Giving up on a settle is safe, a late answer is treated as `:open`, which merely deepens or falls through to the timeout already queued behind it. Because parked branches retain their full state on the idle queue, and because the `:settle` path reuses the same eager CSP machinery, the stall $\to$ settle $\to$ deepen cycle adds no recomputation: it is the same processes and the same tables, only deeper.
+
+## The Peer Agents
+
+The evidence stream was built for $\mathcal{CA}$, but nothing about it is specific to $\mathcal{CA}$. Because closure evidence is _published_, other processes can subscribe to the same stream and do other things with it, without the workers needing to know. The prover ships two such peers, $\mathcal{SA}$ and $\mathcal{MA}$, and they are the clearest vindication of the published-evidence design. <a href="07_extensions.livemd">Chapter 7</a> treats both in full, alongside the proof reconstruction that reads the same tables; this section establishes only what the architecture needs.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__The suggestion agent $\mathcal{SA}$__ runs a strictly _weaker_ unification than $\mathcal{CA}$: pair-level only, never the multi-branch CSP. Where $\mathcal{CA}$ asks for a pre-unifier $\Theta$ closing all branches simultaneously, $\mathcal{SA}$ asks heuristically for a variable instantiation that closes some other branch. It turns each resulting $X \mapsto t$ into an instantiation _hint_ using the `:provenance` table to recover which quantifier minted $X$ and on which branch, and publishes the hint into the `:suggestions` table. Workers, on checking out a branch, splice applicable hints in as cheap synthetic instantiation steps, priced at $2$ alongside the $\alpha$-rules. The whole mechanism sits behind `suggestions_enabled`, which is on per default. Setting it to `false` is the ablation: $\mathcal{SA}$ then does not even subscribe, and the prover's behaviour is that of $\mathcal{CA}$ plus workers. A second knob, `suggestion_cascade_ceiling` ($3$), bounds the feedback loop in which an applied suggestion produces fresh clashes, hence fresh unifiers and fresh suggestions: each hint may be spliced at most that many times across all descendants of the branch it was born on.
+
+<!-- livebook:{"break_markdown":true} -->
+
+$\mathcal{SA}$ is more than an optimisation, for a reason that follows from the rigidity this chapter opened with. A branch never applies a substitution to itself; the substitution lives in $\mathcal{CA}$'s solution and arrives, if at all, only at the end. The branch therefore never sees the _structure_ that applying $\Theta$'s substitution $\theta$ would have introduced: the new redexes, the new heads, the new candidate closing pairs that only exist once $X$ has become $t$. The calculus can still reach that structure, but only through $\gamma$ and primitive substitution, which enumerate blindly and are the two most expensive rules it has. $\mathcal{SA}$ is the cheap path to the same place: it takes a substitution that some _other_ branch's evidence has already shown to be plausible and offers it here as an ordinary instantiation step, so the structure appears without anyone having guessed it.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__The model agent $\mathcal{MA}$__ is $\mathcal{CA}$'s dual. $\mathcal{CA}$'s goal is global _closure_ (the conjecture is a theorem); $\mathcal{MA}$'s goal is _satisfiability_ (the conjecture has a countermodel). It periodically enumerates the open, saturated branches and dispatches each to an external model finder through a pluggable backend; a `:sat` verdict on any branch terminates the session with a confirmed countermodel, reported to the Manager through the same idiom $\mathcal{CA}$ uses. Its backend is a behaviour connecting to a Isabelle/Nitpick server or staying passive, selected by `model_agent_backend` (`:none` by default). $\mathcal{MA}$ is evidence that the architecture generalises: the same published stream feeds a prover of theorems and a finder of countermodels, running side by side.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> Both peers `Registry.register` on `branch_evidence_<session>` exactly as $\mathcal{CA}$ does, and both are children of the `SessionSupervisor` peer to $\mathcal{CA}$. $\mathcal{SA}$'s hints flow worker$\to$(evidence)$\to\mathcal{SA}\to$`:suggestions` table$\to$worker, which is a full loop through shared memory that never touches $\mathcal{CA}$. $\mathcal{MA}$ isolates each backend probe on a supervised, monitored `Task`, so a crashing model finder frees its branch for re-probing rather than wedging $\mathcal{MA}$, and it skips branches whose frontier is smaller than `model_agent_min_frontier` ($3$) or larger than `model_agent_max_frontier` ($100$), with at most `model_agent_max_in_flight` ($2$) probes outstanding. The default configuration runs workers, $\mathcal{CA}$ and $\mathcal{SA}$, with $\mathcal{MA}$ inert at `model_agent_backend: :none`. Each of the three (`contradiction_agent`, `suggestions_enabled`, `model_agent_backend`) is an independently ablatable layer, which is exactly how <a href="08_evaluation.livemd">Chapter 8</a> treats them.
+
+## A Proof, End to End
+
+Everything above runs behind a single synchronous call. The public `prove/*` entry point starts the session tree, blocks on the Manager, and returns a verdict once the search terminates. We prove a small higher-order theorem and inspect the result.
+
+```elixir
+import ShotDs.Hol.Sigils
+alias ShotTx.Prover
+require Logger
+Logger.configure([level: :error])
+
+# (all x. p x) implies (p a) : a one-gamma, one-branch theorem.
+conjecture = with_context ~e[p: $i > $o, a: $i], fn ->
+  ~f"![X: $i]: (p @ X) => p @ a"
+end
+
+result = Prover.prove conjecture, simplification: :none
+Kino.Markdown.new("Verdict: `#{Prover.format_result(result)}`")
+```
+
+The verdict is `THM`: the negation is unsatisfiable, so the conjecture is a theorem. `prove/*` returns more than a verdict, however. On success it returns `{:thm, %ShotTx.Proof{}}`, a reconstructed derivation (<a href="07_extensions.livemd">Chapter 7</a> builds these from the `:traces` table). We can render that actual proof object as a tree, so what the concurrent search found is shown as an ordinary textbook derivation:
+
+```elixir
+{:thm, proof} = result
+
+proof
+|> ShotTx.Proof.to_mermaid()
+|> Kino.Mermaid.new()
+```
+
+> _Behind this one tree: the Manager seeded the negated conjecture, a worker applied $\neg\!\supset$ to split off $\forall X.\,p~X$ and $\neg(p\,a)$, the $\gamma$-rule minted a fresh $X$ for the universal, the worker broadcast the clash $\{p\,X, \neg p\,a\}$, $\mathcal{CA}$'s CSP handed $\{p\,X \overset{?}{=} p\,a\}$ to `ShotUn.unify` and got $[X \mapsto a]$, and that global substitution (closing the single open branch) was reported back and reconstructed into the derivation shown. The unifier in the proof's substitution is the one <a href="04_unification.livemd">Chapter 4</a> produces for this disagreement: local expansion, published clash, global unification._
+
+For a theorem with a genuine branch split, the same machinery does strictly more. Several branches broadcast clashes, and the CSP must find one pre-unifier $\Theta$ satisfying all of them at once. The shape of the interaction is unchanged. Whether the tableau has one open branch or many, closure is always collecting the options and unifying their union.
+
+## Discussion
+
+The architecture follows from the rigidity constraint by a chain of steps, each a consequence of the one before it. Rigidity requires closure to be decided globally. A global decision over shared evidence is taken by a single serial process. The branch expansions feeding that decision carry no mutual dependency and admit parallel execution. Parallel producers and a shared consumer are decoupled by a published stream, and a stream that exists for one consumer admits further ones at negligible cost, which is what makes a countermodel finder and a heuristic guide available. The BEAM supplies cheap processes, supervised failure isolation and shared ETS, so each step of the chain is inexpensive to realise.
+
+The result is a prover whose _logic_ lives in pure functions (the calculus of Chapters 3 to 5) and whose _coordination_ lives in a small number of OTP processes, joined at one point: where a branch's local clash becomes global evidence. <a href="07_extensions.livemd">Chapter 7</a> follows the parts this chapter has only placed: the two peer agents $\mathcal{SA}$ and $\mathcal{MA}$, and the proof reconstruction that reads the `:traces` table. <a href="08_evaluation.livemd">Chapter 8</a> measures what each moving part is worth, ablating the agents, the deepening, and the eager CSP one at a time.
+
+## Footnotes
+
+[TODO: cite free-variable / rigid-variable tableaux (Fitting; Beckert & Hähnle); the Outbox pattern; OTP supervision principles as background for the BEAM realisation.]

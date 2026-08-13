@@ -1,0 +1,46 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Appendix A: Examples
+
+```elixir
+Mix.install([
+  {:shot_tx, "~> 0.0.3"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Overview
+
+[TODO: what this appendix holds and how to run it. Every example is executable and its output is persisted.]
+
+## Propositional and First-Order Warm-Ups
+
+[TODO]
+
+## Quantifier and Instantiation Examples
+
+[TODO: examples exercising the $\gamma$-, $\delta$- and primitive-substitution rules of <a href="03_tableaux.livemd">Chapter 3</a>.]
+
+## Boolean Extensionality
+
+[TODO: renaming and instantiation worked end to end.]
+
+## Equality and Demodulation
+
+[TODO]
+
+## Higher-Order Unification
+
+[TODO: worked enumerations beyond the one in <a href="04_unification.livemd">Chapter 4</a>.]
+
+## Cantor and Other Landmarks
+
+[TODO: the surjective Cantor theorem referenced in <a href="03_tableaux.livemd">Chapter 3</a>.]
+
+## Countermodels
+
+[TODO: satisfiable inputs and the models reported for them.]
+
+## Failure Modes
+
+[TODO: timeouts, exhausted branches, and the cases the calculus leaves undecided.]

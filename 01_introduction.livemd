@@ -1,0 +1,23 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 1: Introduction
+
+## Motivation
+
+[TODO]
+
+## Contributions
+
+[TODO]
+
+## Scope and Non-Goals
+
+[TODO]
+
+## Outline
+
+[TODO: one paragraph per chapter, linking <a href="02_preliminaries.livemd">Chapter 2</a> through <a href="09_conclusion.livemd">Chapter 9</a>.]
+
+## Footnotes
+
+[TODO: cite]

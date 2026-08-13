@@ -1,0 +1,225 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Chapter 4: Higher-Order Unification
+
+```elixir
+Mix.install([
+  {:shot_un, "~> 0.1"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Overview
+
+Branch closure was reduced in <a href="03_tableaux.livemd">Chapter 3</a> to a question about terms: two literals _disagree_ when one of the orientations $\{{\sim}\varphi \overset{?}{=} \psi\}$ or $\{\varphi \overset{?}{=} {\sim}\psi\}$ admits a pre-unifier. This chapter develops the procedure that answers that question. It is the semantic engine underneath the tableau: every conditional closure, every $\gamma$-instantiation that is discharged by a later substitution, and every clash reconciled globally in <a href="06_architecture.livemd">Chapter 6</a> ultimately calls it.
+
+The problem is harder than its first-order counterpart in three ways, each of which shapes the algorithm. Unifiers need no longer be unique, so the procedure enumerates a _set_ of solutions rather than returning one. A most general unifier need not exist, so the notion of "solved" is weakened to _pre-unification_. Solvability is moreover only semi-decidable (indeed already undecidable at second order [TODO: cite Goldfarb 1981]) so the search is bounded by a depth budget and completeness is recovered only in the limit, through the iterative deepening of <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds.
+
+We treat _pre-unification_ (Huet's procedure) as the primary object of study. Two decidable fragments, Miller patterns and second-order matching, are available as faster paths and are described only briefly at the end; they are optimisations rather than the core.
+
+## The Shape of the Problem
+
+The vocabulary was already fixed in <a href="02_preliminaries.livemd">Chapter 2</a>. A term is _flex_ if its head is a free variable and _rigid_ otherwise; a _unification problem_ is a finite set of equations $\mathcal{E} = \{\bar{s}_n \overset{?}{=} \bar{t}_n\}$; a _unifier_ is a free-variable substitution $\theta$ making $s_i\theta$ and $t_i\theta$ syntactically equal for every $i$. Recall also the two definitions the tableau depends on directly:
+
+* a _pre-unifier_ of $\mathcal{E}$ is a pair $\Theta = (\theta, C)$ with $C$ a finite set of flex-flex equations, such that $\theta\theta'$ unifies $\mathcal{E}$ for every unifier $\theta'$ of $C$;
+* the _pre-unification problem_ is to enumerate the pre-unifiers of $\mathcal{E}$.
+
+An individual equation falls into one of three configurations according to its two heads. This trichotomy is the entire case analysis of the procedure.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Equation Configuration).__ An equation $s \overset{?}{=} t$ is _rigid-rigid_ if both heads are rigid, _flex-rigid_ if exactly one head is flex, and _flex-flex_ if both heads are flex.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> A pre-unifier is represented as `%ShotUn.UnifSolution{substitutions: theta, flex_pairs: C}`, exactly the pair $(\theta, C)$ of the definition. The three configurations are dispatched by `ShotUn`'s `evaluate_pair/4` on the `head.kind` fields (`:co`/`:bv` rigid, `:fv` flex) of the two terms, after they are fetched from the global pool. Because terms are kept in $\eta$-long $\beta$-normal form, every term has a head and an argument list accessible, so the configuration is read off without any normalisation.
+
+## Rigid-Rigid: Decomposition
+
+When both heads are rigid there is nothing to guess. A unifier must make the heads coincide, so if they differ the equation has no solution; if they agree, the equation reduces to the componentwise unification of the arguments.
+
+__Definition (Decomposition).__ Let $s = \lambda\bar{\tau}.\, h(\bar{s}_n)$ and $t = \lambda\bar{\tau}.\, h'(\bar{t}_m)$ be rigid. If $h \neq h'$ or $n \neq m$, the equation $s \overset{?}{=} t$ _clashes_ and has no unifier. Otherwise it reduces to the equations $\{\lambda\bar{\tau}.\, s_i \overset{?}{=} \lambda\bar{\tau}.\, t_i \mid 1 \leq i \leq n\}$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotUn.Internal.decompose/2` zips the two argument lists, failing when the lengths differ, and wraps each pair of arguments back under the parent's binders with `wrap_in_bvars/2` so the produced equations are well-typed at the top level. The rigid heads themselves come in two kinds and are checked separately: two constants must be the identical declaration (equal `reference` or name), while two bound-variable heads must denote the same binder slot, which `same_bound_slot?/4` decides modulo the independent renaming of the surrounding $\lambda$'s. A length or head mismatch is a `:rigid_clash` and prunes the branch.
+
+## Flex-Rigid: Imitation and Projection
+
+The flex-rigid case is where the search branches and where non-termination enters. A flex term $\lambda\bar{\tau}.\, X(\bar{u})$ must be unified with a rigid $\lambda\bar{\tau}.\, h(\bar{v})$. The head $X$ is unknown, and a unifier must choose a value for it whose own head, after $\beta$-reduction, is $h$. There are two ways to arrange that.
+
+__Definition (General Binding).__ Let $X : \bar{\alpha}_n \to \varsigma$ be flex and let the opposing rigid head be $h$. A _general binding_ for $X$ has the form
+$$\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\bar{n}), \dots, H_k(\bar{n}))$$
+where the $\bar{H}_k$ are fresh free variables of the appropriate types and the head $\mathcal{H}$ is one of:
+
+* the rigid head $h$ itself, giving an _imitation_ binding; or
+* a projection $\bar{y}_i$ onto one of $X$'s own arguments whose goal type matches $\varsigma$, giving a _projection_ binding.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The imitation binding copies the opponent's head into the solution; the projection binding discards it and promotes one of $X$'s arguments to the head position, betting that the argument already carries the required structure. Each fresh $H_j$ is applied to all of $X$'s bound variables $\bar{y}_n$ so that no solution is excluded a priori, since the $H_j$ may still depend on anything in scope. The equation is then replaced by the binding applied against the rigid side, and the search recurses.
+
+> `ShotUn.Bindings.generic_binding/3` builds these. Given the flex head, the rigid head and the requested binding kinds `[:imitation, :projection]`, it forms the candidate heads (the rigid head for imitation, each of $X$'s argument variables for projection), keeps only those whose goal type agrees with the opponent's, and for each surviving head constructs the matrix $\mathcal{H}(H_1\,\bar{y}, \dots, H_k\,\bar{y})$ by minting the fresh holes $H_j$ at the enclosing type, applying them to $\bar{y}$, and re-abstracting over $\bar{y}$. The result is a list of `Substitution` structs, one per admissible binding, each mapping $X$ to a general binding.
+
+The configuration determines which kinds are offered. Against a rigid _constant_ head both imitation and projection are candidates; against a rigid _bound variable_ only projection makes sense, since there is no constant to imitate. `ShotUn` special-cases these: `:fv`-`:co` and `:co`-`:fv` request `[:imitation, :projection]`, while `:fv`-`:bv` and `:bv`-`:fv` request `[:projection]` alone. A rigid-flex pair is flipped to flex-rigid first so the binding is always generated for the variable side.
+
+One shortcut applies before the general bindings are built. When the flex side is a _bare_ variable $X$ applied to nothing (no arguments, no binders) and $X$ does not occur in the opposing term, the only general binding is imitation of the whole term, so the procedure binds $X$ directly to the rigid side rather than enumerating. This is the ordinary first-order variable-elimination step, recovered as a degenerate case. The occurs-check that guards it is what makes this step sound.
+
+## Flex-Flex: Deferral
+
+When both heads are flex, a common instance always exists, which is to bind both variables to a constant function returning a shared fresh variable; but there are infinitely many, and committing to any particular one risks discarding solutions that a later equation would have forced. Huet's insight is that one need not choose: a flex-flex equation is always solvable, so it can be carried as a _constraint_ rather than solved.
+
+__Definition (Flex-Flex Deferral).__ A flex-flex equation is removed from the active problem and accumulated into the constraint set $C$. The procedure never attempts to solve it.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotUn`'s flex-flex case pushes the pair onto the state's `flex` list and drops it from the work-list; when the work-list empties, the accumulated `flex` list becomes the `flex_pairs` field of the `UnifSolution`. A pre-unifier thus witnesses solvability of $E$ without committing to any solution for $C$, which is what the tableau needs: <a href="06_architecture.livemd">Chapter 6</a>'s global reconciliation may later constrain those same variables from another branch, and a premature local commitment would stand in its way. It is the term-level analogue of the branch-level rigid-variable discipline.
+
+## The Procedure
+
+The three cases assemble into a single search. The state is a work-list of equations still to process, the substitution $\theta$ accumulated so far, the deferred flex-flex set $C$, and a remaining depth budget. One step inspects the first equation and either solves it trivially, decomposes it, defers it, binds a variable, or _branches_ into one successor state per general binding.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Pre-Unification Step).__ Given a state $(\mathcal{E}, \theta, C, d)$ with $\mathcal{E} = \{e\} \uplus \mathcal{E}'$:
+
+* if $d = 0$, the branch _fails_ (budget exhausted);
+* if $e$ is $s \overset{?}{=} s$, drop it: continue with $(\mathcal{E}', \theta, C, d)$;
+* if $e$ is rigid-rigid, decompose it or fail;
+* if $e$ is flex-flex, defer it: continue with $(\mathcal{E}', \theta, C \cup \{e\}, d)$;
+* if $e$ is a bare-variable binding $X \overset{?}{=} t$ with $X \notin \mathrm{FV}(t)$, apply $[X \mapsto t]$ and continue with the same budget;
+* if $e$ is flex-rigid, branch into one successor per general binding, each with budget $d - 1$.
+
+A state with $\mathcal{E} = \varnothing$ is a _solution_: it emits the pre-unifier $(\theta, C)$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> The budget is spent only where the search actually branches. In `ShotUn`, `step/1` decrements `depth` exclusively on the general-binding successors (`build_binding_branch/5` does the `depth - 1`); decomposition, deferral, trivial elimination and the bare-variable bind all pass the budget through unchanged. So "depth" counts imitation/projection commitments (the only source of unbounded work) and matches the tableau's `unification_depth` knob, which <a href="03_tableaux.livemd">Chapter 3</a> described as decremented "only on binding steps." Applying a substitution eagerly rewrites the remaining work-list and re-tests each deferred flex-flex pair, since a binding may turn a pair rigid and pull it back out of $C$ (`apply_substitution/3`).
+
+<!-- livebook:{"break_markdown":true} -->
+
+The successor states are explored depth-first with backtracking, and each solution is yielded before the next is sought, so the whole enumeration is a lazy stream.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotUn.unify/3` wraps the search in a `Stream.resource/3` over a term-factory scratchpad: solutions are produced one at a time, and each is committed from the process-local scratchpad to the global pool only as it leaves the stream (`commit_solution/1`), while intermediate dead-end terms die with the scratchpad. The depth argument defaults to `10`. Because the stream is lazy, a caller that only needs to know whether a pre-unifier _exists_ (e.g. the tableau's disagreement test) takes one element and stops, paying for a single solution rather than the whole enumeration.
+
+## A Worked Enumeration
+
+We set up a small flex-rigid problem and enumerate its pre-unifiers. The context declares a binary constant $f$, a constant $a$, and leaves $X$ as a free variable; the sigils `~f` and `~g` parse TH0 and `~e` a typing context.
+
+```elixir
+import ShotDs.Hol.Sigils
+import ShotDs.Util.Formatter
+alias ShotDs.Util.LatexFormatter, as: LF
+
+# f : (i, i) -> i, a : i, and X, Y are free variables of type i
+{lhs, rhs} = with_context ~e[f: $i>$i>$i, a: $i], fn ->
+  {~g[f @ X @ a], ~g[f @ a @ a]}
+end
+
+Kino.Markdown.new("""
+$$
+#{LF.format! lhs, hide_types: true} \\overset?= #{LF.format! rhs, hide_types: true}
+$$
+""")
+```
+
+The heads agree ($f$ vs $f$), so the equation decomposes into $X \overset{?}{=} a$ and $a \overset{?}{=} a$. The second is trivial; the first is a bare-variable bind. We expect the single pre-unifier $[X \mapsto a]$ with no residual flex-flex constraints.
+
+```elixir
+ShotUn.unify({lhs, rhs}, 10)
+|> Enum.map(&to_string/1)
+|> IO.puts
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+substitutions: [X ↦ a]; remaining flex-flex pairs: []
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Now a genuinely higher-order problem, where imitation and projection diverge. We unify $X(a) \overset{?}{=} f(a, a)$ with $X : \iota \to \iota$ flex. Imitation guesses $X \mapsto \lambda y.\, f(H_1\,y, H_2\,y)$ and recurses; projection guesses $X \mapsto \lambda y.\, y$, which fails here since $a \neq f(a,a)$, and the surviving imitation line further resolves the holes. Several pre-unifiers result, corresponding to the different ways the single argument $a$ can be threaded through $f$.
+
+```elixir
+higher_order = with_context ~e[X: $i>$i, f: $i>$i>$i, a: $i], fn ->
+  {~g[X @ a], ~g[f @ a @ a]}
+end
+
+ShotUn.unify(higher_order, 10)
+|> Enum.map_join("\n", &to_string/1)
+|> IO.puts
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+substitutions: [X ↦ λ. f a a]; remaining flex-flex pairs: []
+substitutions: [X ↦ λ. f a 1]; remaining flex-flex pairs: []
+substitutions: [X ↦ λ. f 1 a]; remaining flex-flex pairs: []
+substitutions: [X ↦ λ. f 1 1]; remaining flex-flex pairs: []
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+> _The four solutions are the four projections of the argument $a$ onto the two occurrences of $a$ in $f(a, a)$: the bound variable (shown as the de Bruijn index `1`) may fill either, both, or neither $f$-argument. This branching, several pre-unifiers for one problem, is the non-uniqueness that distinguishes higher-order from first-order unification, as no most general unifier exists in the general case._
+
+<!-- livebook:{"break_markdown":true} -->
+
+The disagreement test of <a href="03_tableaux.livemd">Chapter 3</a> needs only the _existence_ of a pre-unifier, which the lazy stream answers without enumerating the rest:
+
+```elixir
+disagree? = ShotUn.unify(higher_order, 10) |> Enum.any?()
+
+disagree?
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+## Visualising the Search
+
+Every entry point accepts `vis: true`, which materialises the search eagerly and returns a `ShotUn.Trace` alongside the solutions. The trace is pruned to the paths that reach a solution, so failed imitation/projection lines are dropped before rendering. `ShotUn.Trace.Mermaid.render/2` emits a Mermaid `graph TD` with each node's rule, remaining work-list, accumulated $\theta$ and deferred $C$ typeset as LaTeX.
+
+```elixir
+{_solutions, trace} = ShotUn.unify higher_order, 10, vis: true
+
+trace
+|> ShotUn.Trace.Mermaid.render
+|> Kino.Mermaid.new
+```
+
+> _Renders on run: the root is the initial equation $X(a) \overset{?}{=} f(a,a)$; the first fan-out is the general-binding branch (imitation of $f$ against the two projections of $a$); each surviving path descends through decomposition and bare-variable binds to a `:solution` leaf carrying its pre-unifier. Depth-exhausted and rigid-clash leaves are pruned out by `prune_to_solutions/1`._
+
+## Depth and Completeness
+
+The budget makes the procedure terminating but incomplete: a pre-unifier that only appears past the current depth is missed. This is not a defect to be tuned away but the semi-decidability of the problem showing through. The tableau's response, developed in <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds and <a href="06_architecture.livemd">Chapter 6</a>'s iterative deepening, is to _raise_ the budget when the search saturates and resume, rather than to fix a single depth. Because the parked $\gamma$- and primitive-substitution rules preserve their state across deepening, the extra unification depth is applied where it was previously exhausted, not from scratch.
+
+Two properties make the bound well-behaved. Decomposition and deferral are free, so a problem consisting entirely of first-order structure and flex-flex pairs is solved at any positive depth; only genuine flex-rigid guessing consumes budget. The occurs-check on the bare-variable bind guarantees that the non-branching path always terminates, so raising the budget can only add solutions, never diverge on the ones already found.
+
+## Decidable Fragments (Sidenote)
+
+Two special cases sidestep the search entirely and `ShotUn` routes to them when a problem qualifies (via `ShotUn.Fragment` and the `strategy: :auto` option). They are performance paths layered over the general procedure, not part of the calculus, and the tableau's soundness does not depend on them.
+
+* __Miller pattern unification__ [TODO: cite Miller 1991]. A problem is a _pattern_ when every flex variable is applied only to distinct bound variables. The fragment is decidable and _unitary_, since a solvable pattern problem has a single most general unifier, so `pattern_unify/2` returns at most one solution with no depth bound. This is the common shape in practice, since many $\gamma$-instantiations produce exactly such applied variables.
+
+* __Second-order matching__ [TODO: cite Huet; Stirling 2009 for the general decidability]. When one side is ground and every type in the problem has order at most two, `match/2` enumerates the complete set of matchers by a terminating structural recursion, again without a depth bound.
+
+Under `strategy: :auto`, `resolve_auto/1` tests the pattern precondition first, then the matching precondition, and falls through to depth-bounded pre-unification otherwise, always selecting the most specific decidable algorithm the problem falls into. For everything outside those fragments, and for the disagreement test that the tableau actually runs, pre-unification is the procedure.
+
+## Footnotes
+
+[TODO: consolidate citations: Huet 1975 (pre-unification), Goldfarb 1981 (undecidability at second order), Miller 1991 (patterns), Huet / Stirling 2009 (matching).]
