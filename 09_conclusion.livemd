@@ -21,3 +21,9 @@
 ## Footnotes
 
 [TODO: cite]
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="90_bibliography.livemd">Bibliography</a>

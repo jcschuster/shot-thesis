@@ -1,0 +1,9 @@
+outcome,count,share_pct
+timeout,3423,67.0
+thm,685,13.4
+parse_timeout,628,12.3
+parser_error,221,4.3
+no_conjecture,77,1.5
+csa,62,1.2
+unk,8,0.2
+prover_error,5,0.1

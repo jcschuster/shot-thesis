@@ -11,11 +11,11 @@ Mix.install([
 
 ## Overview
 
-Branch closure was reduced in <a href="03_tableaux.livemd">Chapter 3</a> to a question about terms: two literals _disagree_ when one of the orientations $\{{\sim}\varphi \overset{?}{=} \psi\}$ or $\{\varphi \overset{?}{=} {\sim}\psi\}$ admits a pre-unifier. This chapter develops the procedure that answers that question. It is the semantic engine underneath the tableau: every conditional closure, every $\gamma$-instantiation that is discharged by a later substitution, and every clash reconciled globally in <a href="06_architecture.livemd">Chapter 6</a> ultimately calls it.
+Branch closure was reduced in <a href="03_tableaux.livemd">Chapter 3</a> to a question about terms: two literals _disagree_ when one of the orientations $\{{\sim}\varphi \overset{?}{=} \psi\}$ or $\{\varphi \overset{?}{=} {\sim}\psi\}$ admits a pre-unifier. This chapter develops the procedure that answers that question. It is the term-level procedure on which the calculus rests: every conditional closure, every $\gamma$-instantiation discharged by a later substitution, and every clash reconciled globally in <a href="06_architecture.livemd">Chapter 6</a> invokes it.
 
-The problem is harder than its first-order counterpart in three ways, each of which shapes the algorithm. Unifiers need no longer be unique, so the procedure enumerates a _set_ of solutions rather than returning one. A most general unifier need not exist, so the notion of "solved" is weakened to _pre-unification_. Solvability is moreover only semi-decidable (indeed already undecidable at second order [TODO: cite Goldfarb 1981]) so the search is bounded by a depth budget and completeness is recovered only in the limit, through the iterative deepening of <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds.
+The problem is harder than its first-order counterpart in three ways, each of which shapes the algorithm. Unifiers need no longer be unique, so the procedure enumerates a _set_ of solutions rather than returning one. A most general unifier need not exist, so the notion of "solved" is weakened to _pre-unification_. Solvability is moreover only semi-decidable (indeed already undecidable at second order <a href="#chapter-references">[Gol81]</a>) so the search is bounded by a depth budget and completeness is recovered only in the limit, through the iterative deepening of <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds.
 
-We treat _pre-unification_ (Huet's procedure) as the primary object of study. Two decidable fragments, Miller patterns and second-order matching, are available as faster paths and are described only briefly at the end; they are optimisations rather than the core.
+We treat _pre-unification_ (Huet's procedure <a href="#chapter-references">[Hue75]</a>, surveyed by Dowek <a href="#chapter-references">[Dow01]</a>) as the primary object of study. Two decidable fragments, Miller patterns and second-order matching, are available as faster paths and are described only briefly at the end; they are optimisations rather than the core.
 
 ## The Shape of the Problem
 
@@ -57,23 +57,23 @@ where the $\bar{H}_k$ are fresh free variables of the appropriate types and the 
 
 <!-- livebook:{"break_markdown":true} -->
 
-The imitation binding copies the opponent's head into the solution; the projection binding discards it and promotes one of $X$'s arguments to the head position, betting that the argument already carries the required structure. Each fresh $H_j$ is applied to all of $X$'s bound variables $\bar{y}_n$ so that no solution is excluded a priori, since the $H_j$ may still depend on anything in scope. The equation is then replaced by the binding applied against the rigid side, and the search recurses.
+The imitation binding copies the opposing rigid head into the solution; the projection binding discards it and promotes one of $X$'s arguments to the head position, on the assumption that the argument already carries the required structure. Each fresh $H_j$ is applied to all of $X$'s bound variables $\bar{y}_n$ so that no solution is excluded a priori, since the $H_j$ may still depend on anything in scope. The equation is then replaced by the binding applied against the rigid side, and the search recurses.
 
-> `ShotUn.Bindings.generic_binding/3` builds these. Given the flex head, the rigid head and the requested binding kinds `[:imitation, :projection]`, it forms the candidate heads (the rigid head for imitation, each of $X$'s argument variables for projection), keeps only those whose goal type agrees with the opponent's, and for each surviving head constructs the matrix $\mathcal{H}(H_1\,\bar{y}, \dots, H_k\,\bar{y})$ by minting the fresh holes $H_j$ at the enclosing type, applying them to $\bar{y}$, and re-abstracting over $\bar{y}$. The result is a list of `Substitution` structs, one per admissible binding, each mapping $X$ to a general binding.
+> `ShotUn.Bindings.generic_binding/3` builds these. Given the flex head, the rigid head and the requested binding kinds `[:imitation, :projection]`, it forms the candidate heads (the rigid head for imitation, each of $X$'s argument variables for projection), keeps only those whose goal type agrees with that of the opposing side, and for each surviving head constructs the matrix $\mathcal{H}(H_1\,\bar{y}, \dots, H_k\,\bar{y})$ by allocating the fresh holes $H_j$ at the enclosing type, applying them to $\bar{y}$, and re-abstracting over $\bar{y}$. The result is a list of `Substitution` structs, one per admissible binding, each mapping $X$ to a general binding.
 
 The configuration determines which kinds are offered. Against a rigid _constant_ head both imitation and projection are candidates; against a rigid _bound variable_ only projection makes sense, since there is no constant to imitate. `ShotUn` special-cases these: `:fv`-`:co` and `:co`-`:fv` request `[:imitation, :projection]`, while `:fv`-`:bv` and `:bv`-`:fv` request `[:projection]` alone. A rigid-flex pair is flipped to flex-rigid first so the binding is always generated for the variable side.
 
-One shortcut applies before the general bindings are built. When the flex side is a _bare_ variable $X$ applied to nothing (no arguments, no binders) and $X$ does not occur in the opposing term, the only general binding is imitation of the whole term, so the procedure binds $X$ directly to the rigid side rather than enumerating. This is the ordinary first-order variable-elimination step, recovered as a degenerate case. The occurs-check that guards it is what makes this step sound.
+One special case applies before the general bindings are built. When the flex side is a _bare_ variable $X$ applied to nothing (no arguments, no binders) and $X$ does not occur in the opposing term, the only general binding is imitation of the whole term, so the procedure binds $X$ directly to the rigid side rather than enumerating. This is the ordinary first-order variable-elimination step, recovered as a degenerate case. The occurs-check that guards it is what makes this step sound.
 
 ## Flex-Flex: Deferral
 
-When both heads are flex, a common instance always exists, which is to bind both variables to a constant function returning a shared fresh variable; but there are infinitely many, and committing to any particular one risks discarding solutions that a later equation would have forced. Huet's insight is that one need not choose: a flex-flex equation is always solvable, so it can be carried as a _constraint_ rather than solved.
+When both heads are flex, a common instance always exists, which is to bind both variables to a constant function returning a shared fresh variable; but there are infinitely many, and committing to any particular one risks discarding solutions that a later equation would have forced. Huet's insight <a href="#chapter-references">[Hue75]</a> is that one need not choose: a flex-flex equation is always solvable, so it can be carried as a _constraint_ rather than solved.
 
 __Definition (Flex-Flex Deferral).__ A flex-flex equation is removed from the active problem and accumulated into the constraint set $C$. The procedure never attempts to solve it.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> `ShotUn`'s flex-flex case pushes the pair onto the state's `flex` list and drops it from the work-list; when the work-list empties, the accumulated `flex` list becomes the `flex_pairs` field of the `UnifSolution`. A pre-unifier thus witnesses solvability of $E$ without committing to any solution for $C$, which is what the tableau needs: <a href="06_architecture.livemd">Chapter 6</a>'s global reconciliation may later constrain those same variables from another branch, and a premature local commitment would stand in its way. It is the term-level analogue of the branch-level rigid-variable discipline.
+> `ShotUn`'s flex-flex case pushes the pair onto the state's `flex` list and drops it from the work-list; when the work-list empties, the accumulated `flex` list becomes the `flex_pairs` field of the `UnifSolution`. A pre-unifier thus witnesses solvability of $E$ without committing to any solution for $C$, which is what the tableau needs: <a href="06_architecture.livemd">Chapter 6</a>'s global reconciliation may later constrain those same variables from another branch, and a premature local commitment could exclude the solution it requires. It is the term-level analogue of the branch-level rigid-variable discipline.
 
 ## The Procedure
 
@@ -94,7 +94,7 @@ A state with $\mathcal{E} = \varnothing$ is a _solution_: it emits the pre-unifi
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The budget is spent only where the search actually branches. In `ShotUn`, `step/1` decrements `depth` exclusively on the general-binding successors (`build_binding_branch/5` does the `depth - 1`); decomposition, deferral, trivial elimination and the bare-variable bind all pass the budget through unchanged. So "depth" counts imitation/projection commitments (the only source of unbounded work) and matches the tableau's `unification_depth` knob, which <a href="03_tableaux.livemd">Chapter 3</a> described as decremented "only on binding steps." Applying a substitution eagerly rewrites the remaining work-list and re-tests each deferred flex-flex pair, since a binding may turn a pair rigid and pull it back out of $C$ (`apply_substitution/3`).
+> The budget is spent only where the search actually branches. In `ShotUn`, `step/1` decrements `depth` exclusively on the general-binding successors (`build_binding_branch/5` does the `depth - 1`); decomposition, deferral, trivial elimination and the bare-variable bind all pass the budget through unchanged. So "depth" counts imitation/projection commitments (the only source of unbounded work) and agrees with the tableau's `unification_depth` parameter, which <a href="03_tableaux.livemd">Chapter 3</a> described as decremented "only on binding steps." Applying a substitution eagerly rewrites the remaining work-list and re-tests each deferred flex-flex pair, since a binding may turn a pair rigid and pull it back out of $C$ (`apply_substitution/3`).
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -102,7 +102,7 @@ The successor states are explored depth-first with backtracking, and each soluti
 
 <!-- livebook:{"break_markdown":true} -->
 
-> `ShotUn.unify/3` wraps the search in a `Stream.resource/3` over a term-factory scratchpad: solutions are produced one at a time, and each is committed from the process-local scratchpad to the global pool only as it leaves the stream (`commit_solution/1`), while intermediate dead-end terms die with the scratchpad. The depth argument defaults to `10`. Because the stream is lazy, a caller that only needs to know whether a pre-unifier _exists_ (e.g. the tableau's disagreement test) takes one element and stops, paying for a single solution rather than the whole enumeration.
+> `ShotUn.unify/3` wraps the search in a `Stream.resource/3` over a term-factory scratchpad: solutions are produced one at a time, and each is committed from the process-local scratchpad to the global pool only as it leaves the stream (`commit_solution/1`), while intermediate terms from failed branches are discarded with the scratchpad. The depth argument defaults to `10`. Because the stream is lazy, a caller that only needs to know whether a pre-unifier _exists_ (e.g. the tableau's disagreement test) takes one element and stops, computing a single solution rather than the whole enumeration.
 
 ## A Worked Enumeration
 
@@ -206,7 +206,7 @@ trace
 
 ## Depth and Completeness
 
-The budget makes the procedure terminating but incomplete: a pre-unifier that only appears past the current depth is missed. This is not a defect to be tuned away but the semi-decidability of the problem showing through. The tableau's response, developed in <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds and <a href="06_architecture.livemd">Chapter 6</a>'s iterative deepening, is to _raise_ the budget when the search saturates and resume, rather than to fix a single depth. Because the parked $\gamma$- and primitive-substitution rules preserve their state across deepening, the extra unification depth is applied where it was previously exhausted, not from scratch.
+The budget makes the procedure terminating but incomplete: a pre-unifier that only appears past the current depth is missed. The incompleteness is a consequence of the problem's semi-decidability rather than a parameter to be tuned away. The tableau's response, developed in <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds and <a href="06_architecture.livemd">Chapter 6</a>'s iterative deepening, is to _raise_ the budget when the search saturates and resume, rather than to fix a single depth. Because the parked $\gamma$- and primitive-substitution rules preserve their state across deepening, the extra unification depth is applied where it was previously exhausted, not from scratch.
 
 Two properties make the bound well-behaved. Decomposition and deferral are free, so a problem consisting entirely of first-order structure and flex-flex pairs is solved at any positive depth; only genuine flex-rigid guessing consumes budget. The occurs-check on the bare-variable bind guarantees that the non-branching path always terminates, so raising the budget can only add solutions, never diverge on the ones already found.
 
@@ -214,12 +214,22 @@ Two properties make the bound well-behaved. Decomposition and deferral are free,
 
 Two special cases sidestep the search entirely and `ShotUn` routes to them when a problem qualifies (via `ShotUn.Fragment` and the `strategy: :auto` option). They are performance paths layered over the general procedure, not part of the calculus, and the tableau's soundness does not depend on them.
 
-* __Miller pattern unification__ [TODO: cite Miller 1991]. A problem is a _pattern_ when every flex variable is applied only to distinct bound variables. The fragment is decidable and _unitary_, since a solvable pattern problem has a single most general unifier, so `pattern_unify/2` returns at most one solution with no depth bound. This is the common shape in practice, since many $\gamma$-instantiations produce exactly such applied variables.
+* __Miller pattern unification__ <a href="#chapter-references">[Mil91]</a>. A problem is a _pattern_ when every flex variable is applied only to distinct bound variables. The fragment is decidable and _unitary_, since a solvable pattern problem has a single most general unifier, so `pattern_unify/2` returns at most one solution with no depth bound. This is the common shape in practice, since many $\gamma$-instantiations produce exactly such applied variables.
 
-* __Second-order matching__ [TODO: cite Huet; Stirling 2009 for the general decidability]. When one side is ground and every type in the problem has order at most two, `match/2` enumerates the complete set of matchers by a terminating structural recursion, again without a depth bound.
+* __Second-order matching__ <a href="#chapter-references">[Hue75]</a>, with decidability at every order settled by Stirling <a href="#chapter-references">[Sti09]</a>. When one side is ground and every type in the problem has order at most two, `match/2` enumerates the complete set of matchers by a terminating structural recursion, again without a depth bound.
 
 Under `strategy: :auto`, `resolve_auto/1` tests the pattern precondition first, then the matching precondition, and falls through to depth-bounded pre-unification otherwise, always selecting the most specific decidable algorithm the problem falls into. For everything outside those fragments, and for the disagreement test that the tableau actually runs, pre-unification is the procedure.
 
-## Footnotes
+## Chapter References
 
-[TODO: consolidate citations: Huet 1975 (pre-unification), Goldfarb 1981 (undecidability at second order), Miller 1991 (patterns), Huet / Stirling 2009 (matching).]
+* __[Dow01]__ Gilles Dowek. Higher-order unification and matching. In _Handbook of Automated Reasoning_, volume 2, chapter 16, pages 1009–1062. Elsevier and MIT Press, 2001.
+* __[Gol81]__ Warren D. Goldfarb. The undecidability of the second-order unification problem. _Theoretical Computer Science_, 13(2):225–230, 1981.
+* __[Hue75]__ Gérard P. Huet. A unification algorithm for typed $\lambda$-calculus. _Theoretical Computer Science_, 1(1):27–57, 1975.
+* __[Mil91]__ Dale Miller. A logic programming language with lambda-abstraction, function variables, and simple unification. _Journal of Logic and Computation_, 1(4):497–536, 1991.
+* __[Sti09]__ Colin Stirling. Decidability of higher-order matching. _Logical Methods in Computer Science_, 5(3), 2009.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="03_tableaux.livemd">Chapter 3: Higher-Order Tableaux</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="05_term_order.livemd">Chapter 5: Term Ordering</a>

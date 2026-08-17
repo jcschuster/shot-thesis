@@ -50,8 +50,8 @@ Stated in `02_preliminaries.livemd` and binding on every chapter:
 - **Blockquoted paragraphs** are implementation notes: what the Shot packages
   do, which module does it, which parameter governs it. A note may narrow a
   definition without the definition changing.
-- **Executable cells** are the sharpest form of the third register. Where the
-  code is the precise statement, it is run rather than paraphrased.
+- **Executable cells** belong to the third register as well. Where the code is
+  the precise statement, it is run rather than paraphrased.
 
 Putting a flag name inside a Definition, or an implementation constraint inside
 a Proposition, is a register error even when the content is correct.
@@ -105,6 +105,12 @@ new symbol is needed, follow the existing shape rather than inventing a style.
 
 ## Typography and conventions
 
+- **British spelling throughout.** `-ise`/`-isation`, never `-ize`/`-ization`:
+  parallelisation, serialised, normalised, optimised, minimising,
+  Skolemisation, memoised, realising. Also `-yse` (analyse), `-our`
+  (behaviour, colour), `artefact`, `judgement`, `modelling`. Backticked code
+  identifiers, module names, ETS options and verbatim quotations keep their
+  original spelling, as do titles in the reference lists.
 - **No dashes as punctuation.** No `$-$`, no em dash, no en dash, no
   space-hyphen-space. Use commas, colons, semicolons or a new sentence.
 - Paired terms are hyphenated: `flex-flex`, `rigid-rigid`, `flex-rigid`,
@@ -136,6 +142,28 @@ spaces turned to hyphens.
 
 ## Prose style
 
+**The target register is a CADE/IJCAR conference paper.** Every paragraph of
+every chapter should read as if it were going to a referee at an automated
+reasoning conference: plain, precise, technical, unornamented. Before delivering
+any prose written for this thesis, reread it against that standard and confirm
+in the reply that this was done; if a sentence would look out of place in the
+LNCS proceedings of CADE, rewrite it before handing it over.
+
+**No picturesque, metaphorical or anthropomorphic language.** This is the rule
+broken most often. Do not write "paid in three separate currencies", "rides on
+the standard pipeline", "pays for itself many times over", "the semantic engine
+underneath the tableau", "buys soundness", "closes a loop with", "the pieces
+assemble into a single choreography", "the load path of the whole prover", "the
+cheap path to the same place". Describe the mechanism instead. Processes,
+branches and rules do not want, try, watch, guess, listen, wake, get born, die,
+win or lose; state what they compute, record, send or terminate on.
+Metaphor-derived jargon is also out wherever a standard term exists: write
+"matrix", not "recipe"; "introduced" or "created", not "minted"; "originating
+branch", not "birth branch"; "parameter", not "knob". Established technical
+terms that happen to be metaphors in origin are fine: branch, tree, leaf, node,
+head, spine, hole, redex, scratchpad, stream, queue, tombstone, blackboard,
+supervision tree, dead end, starvation.
+
 Write plainly and stay in the register. The following patterns have been removed
 from the notebooks and should not come back.
 
@@ -145,7 +173,16 @@ point", "importantly", "notably", "interestingly".
 
 **Do not use the "not X but Y" cadence** to simulate insight: "this is not
 fastidiousness", "does not merely tolerate, it makes", "not chosen but forced".
-State the thing.
+State the thing. The variants count as the same fault and are easy to miss when
+rereading: "X is not Y. It is Z", "X is not Y; it is Z", "not merely/only X but
+Y", "not a X but a Y", "the design is not C for its own sake". Where a contrast
+really is needed, put the accepted option first and the rejected one after it
+("a work-stealing pool over shared structures, rather than a process per unit of
+work"). A bare qualification such as "syntactic identity, not matching modulo a
+substitution" is fine; it states a boundary rather than staging a reveal.
+
+**Prefer neutral terms for process roles.** Write "one process directs the
+others" or "coordinator and workers", not "master-slave".
 
 **Avoid the flagged vocabulary:** delve, tapestry, testament, landscape, realm,
 leverage, underscore, showcase, pivotal, crucial, robust, seamless, intricate,
@@ -154,8 +191,7 @@ deliberate, moving parts, at its core.
 
 **Avoid the tics:** sentences opening with "And" or "But"; three-part lists used
 for rhythm rather than because there are three things; parenthetical asides that
-hedge instead of committing; metaphor where a description would do ("pays for it
-in this coin", "the branch's name *is* its position").
+hedge instead of committing.
 
 Prefer the concrete claim over the evocative one. "A branch that has not changed
 its commitments will not answer differently" beats "is not worth probing again".

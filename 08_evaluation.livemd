@@ -4,47 +4,418 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, "~> 0.0.3"},
-  {:kino, "~> 0.19.0"}
+  {:kino, "~> 0.19.0"},
+  {:kino_vega_lite, "~> 0.1.13"}
 ])
 ```
 
 ## Overview
 
-[TODO]
+The architecture of <a href="06_architecture.livemd">Chapter 6</a> and the rules of Chapters 3 to 5 were each introduced with an argument for why they belong in the prover. This chapter measures what each of them contributes to the number of problems the prover solves, by switching one off at a time against a fixed baseline and running the whole TPTP higher-order corpus at a uniform time budget.
+
+The chapter has three principal results. The contradiction agent $\mathcal{CA}$ accounts for roughly half of all refutations: disabling it costs $364$ of $682$, and nothing else in the matrix is within a factor of four of that. Iterative deepening, demodulation, atom decomposition, finite $o$-quantification and the initial $\gamma$-limit each contribute measurably, and eager definition unfolding improves on the default by $48$ problems. Primitive substitution, the suggestion agent $\mathcal{SA}$, instance-based $\gamma$-expansion, the primitive substitution batch size and the size of the worker pool all lie within the study's noise, which is estimated in <a href="#the-measurement-floor">§ The Measurement Floor</a> at about eight problems on a net figure.
+
+The last of those is the answer to the question <a href="01_introduction.livemd">Chapter 1</a> left open. A pool of one worker per online scheduler performs about three times the inference of a single worker within the same budget and solves two problems fewer. The measurement in <a href="#scaling-with-the-worker-pool">§ Scaling with the Worker Pool</a> locates the reason: the additional inference widens the frontier of open branches without increasing the rate at which global closure is attempted, and global closure is what produces the refutations.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Every figure in this chapter is scored on refutations. Countermodel answers are reported separately and are not counted as solves, for the reason given in <a href="#scoring">§ Scoring</a>: the prover infers the countermodel verdict from a syntactic test and never checks it, so a `CounterSatisfiable` answer is not attested whether or not it agrees with the TPTP status.
 
 ## Method
 
-[TODO: benchmark set, hardware, timeout, how a run is scored, how variance is handled.]
+The corpus is every TH0 and TH1 problem of the TPTP library <a href="#chapter-references">[Sut17]</a>, $5109$ problems in the version used here. Sixteen configurations were run over the full corpus: the baseline, one configuration per component switched off relative to it, and two numeric sweeps at three values each. Each configuration ran once, and each problem received a uniform budget of `timeout` ($2000$ ms). The budget is not a swept dimension, so a difference in solved count between two rows is attributable to the component under ablation rather than to differing time.
+
+The derived tables this chapter reads are in `files/`; the per-problem records they summarise are $81\,744$ rows produced by `ShotTx.Benchmark.TptpRunner` and are held in the implementation repository rather than here.
+
+> [TODO: state the benchmark machine, its core count, and the value `System.schedulers_online()` takes there, since `worker_pool_size` (`:auto`) resolves to it and the whole of the last section is read against that number. Record the sweep dates as well: the baseline ran on 2026-08-15 and the serial configuration on 2026-08-16.]
+
+<!-- livebook:{"break_markdown":true} -->
+
+### Scoring
+
+An answer counts as a solve when it agrees with the SZS status <a href="#chapter-references">[Sut08]</a> declared in the problem file. Three further conventions are needed to read the tables.
+
+First, refutations only. `Branch.model_certain?/2` decides the countermodel verdict by a pairwise syntactic test over the literals of a saturated branch, and no countermodel produced in the sweep was ever checked against a model finder: of the $991$ `CounterSatisfiable` answers recorded across the sixteen configurations, none had made a single call to the global closure search. A countermodel answer that agrees with the TPTP status therefore rests on the same unvalidated predicate as one that contradicts it, and neither is evidence about the calculus. Countermodels are reported as a separate column and excluded from the solved counts. Restricting to refutations leaves the ordering of the sixteen configurations unchanged.
+
+Second, agreement with the problem file. Three problems whose header carries no usable status were answered by the prover and are not counted, so the baseline records $743$ solves rather than $746$.
+
+Third, the scoring function itself is narrower than the SZS ontology. `TptpRunner.score/2` scores `Theorem` and `CounterSatisfiable` and records everything else as undecidable, so an answer on an `Unsatisfiable`, `ContradictoryAxioms` or `Satisfiable` problem is neither credited nor counted against the configuration. Re-scoring the sweep under the full table produced no further disagreements, so the counts below are unaffected, but a regression in those classes would not be visible.
+
+```elixir
+defmodule Ch8.Data do
+  @moduledoc """
+  Loader for the derived tables in `files/`. Each file is a comma-separated
+  table with a header row and no quoted fields; numeric cells are cast so the
+  tables can be sorted and charted without further conversion.
+  """
+
+  @dir Path.join(__DIR__, "files")
+
+  def load(name) do
+    [header | rows] =
+      @dir
+      |> Path.join(name)
+      |> File.read!()
+      |> String.split("\n", trim: true)
+      |> Enum.map(&(&1 |> String.trim() |> String.split(",")))
+
+    keys = Enum.map(header, &String.to_atom/1)
+
+    Enum.map(rows, fn cells ->
+      keys
+      |> Enum.zip(cells)
+      |> Map.new(fn {key, value} -> {key, cast(value)} end)
+    end)
+  end
+
+  defp cast(value) do
+    with :error <- parse_integer(value), :error <- parse_float(value) do
+      value
+    end
+  end
+
+  defp parse_integer(value) do
+    case Integer.parse(value) do
+      {number, ""} -> number
+      _other -> :error
+    end
+  end
+
+  defp parse_float(value) do
+    case Float.parse(value) do
+      {number, ""} -> number
+      _other -> :error
+    end
+  end
+end
+
+summary = Ch8.Data.load("ablation_summary.csv")
+Kino.nothing()
+```
 
 ## Baseline
 
-[TODO: the default configuration of <a href="06_architecture.livemd">Chapter 6</a>, against which every ablation is read.]
+The baseline is the default `%ShotTx.Data.Parameters{}` of <a href="06_architecture.livemd">Chapter 6</a> with `timeout` set to $2000$ ms: both peer agents present in their default state, every calculus rule enabled, iterative deepening on, and `worker_pool_size` (`:auto`). One departure from the defaults bounds what the chapter can claim: `model_agent_backend` (`:none`) in every one of the sixteen configurations, so $\mathcal{MA}$ ran as an idle process throughout and its contribution is not measured here.
+
+```elixir
+Ch8.Data.load("baseline_outcomes.csv")
+|> Enum.map(fn row ->
+  %{
+    "Outcome" => row.outcome,
+    "Problems" => row.count,
+    "Share (%)" => row.share_pct
+  }
+end)
+|> Kino.DataTable.new(name: "Baseline outcomes over 5109 problems")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Outcome" => "timeout", "Problems" => 3423, "Share (%)" => 67.0}, %{"Outcome" => "thm", "Problems" => 685, "Share (%)" => 13.4}, %{"Outcome" => "parse_timeout", "Problems" => 628, "Share (%)" => 12.3}, %{"Outcome" => "parser_error", "Problems" => 221, "Share (%)" => 4.3}, %{"Outcome" => "no_conjecture", "Problems" => 77, "Share (%)" => 1.5}, %{"Outcome" => "csa", "Problems" => 62, "Share (%)" => 1.2}, %{"Outcome" => "unk", "Problems" => 8, "Share (%)" => 0.2}, %{"Outcome" => "prover_error", "Problems" => 5, "Share (%)" => 0.1}]
+```
+
+> `parse_timeout` and `parser_error` are properties of `ShotDs.Tptp` rather than of the prover: the parser never sees `%Parameters{}`, so a problem it cannot read is unreadable under every configuration. `no_conjecture` marks problems that are not attemptable as posed.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Removing the $628$ parse timeouts, the $221$ parse failures and the $77$ problems without a conjecture leaves $4183$ genuine attempts, of which the baseline solved $743$, or $17.8\,\%$. One problem in six never reached the prover, so the corpus-level rate is bounded by the parser rather than by the calculus, and repairing the parser is the largest single coverage gain available.
+
+```elixir
+alias VegaLite, as: Vl
+
+cumulative =
+  "baseline_solved.csv"
+  |> Ch8.Data.load()
+  |> Enum.sort_by(& &1.time_ms)
+  |> Enum.with_index(1)
+  |> Enum.map(fn {row, rank} -> %{"time_ms" => max(row.time_ms, 1), "solved" => rank} end)
+
+# Vega-Lite names this curve "step-after". The atom :step_after serialises with
+# the underscore intact, which is not a curve name, and the line layer is then
+# dropped without an error.
+time_scale = [type: :log, domain: [1, 3200], nice: false]
+
+Vl.new(
+  width: 560,
+  height: 270,
+  title: [
+    text: "Baseline: solves accumulated against wall clock",
+    subtitle: "743 answers agreeing with TPTP, cumulative",
+    anchor: :start,
+    font_size: 13,
+    subtitle_font_size: 11,
+    subtitle_color: "#6b7280"
+  ]
+)
+|> Vl.layers([
+  Vl.new()
+  |> Vl.data_from_values(cumulative)
+  |> Vl.mark(:line, interpolate: "step-after", color: "#2c5fa8", stroke_width: 2)
+  |> Vl.encode_field(:x, "time_ms",
+    type: :quantitative,
+    scale: time_scale,
+    axis: [grid: false, title: "wall clock in milliseconds, logarithmic"]
+  )
+  |> Vl.encode_field(:y, "solved",
+    type: :quantitative,
+    scale: [domain: [0, 780], nice: false],
+    axis: [grid: true, grid_color: "#e5e7eb", title: "problems solved"]
+  ),
+  Vl.new()
+  |> Vl.data_from_values([%{"time_ms" => 2000}])
+  |> Vl.mark(:rule, color: "#8a939c", stroke_dash: [4, 3])
+  |> Vl.encode_field(:x, "time_ms", type: :quantitative, scale: time_scale),
+  Vl.new()
+  |> Vl.data_from_values([%{"time_ms" => 2000, "solved" => 700, "label" => "budget"}])
+  |> Vl.mark(:text, align: :right, dx: -5, color: "#6b7280", font_size: 10)
+  |> Vl.encode_field(:x, "time_ms", type: :quantitative, scale: time_scale)
+  |> Vl.encode_field(:y, "solved", type: :quantitative)
+  |> Vl.encode_field(:text, "label", type: :nominal)
+])
+|> Vl.config(view: [stroke: nil])
+```
+
+<!-- livebook:{"output":true} -->
+
+```vega-lite
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","config":{"view":{"stroke":null}},"height":270,"layer":[{"data":{"values":[{"solved":1,"time_ms":1},{"solved":2,"time_ms":1},{"solved":3,"time_ms":1},{"solved":4,"time_ms":1},{"solved":5,"time_ms":1},{"solved":6,"time_ms":2},{"solved":7,"time_ms":2},{"solved":8,"time_ms":2},{"solved":9,"time_ms":2},{"solved":10,"time_ms":2},{"solved":11,"time_ms":2},{"solved":12,"time_ms":2},{"solved":13,"time_ms":2},{"solved":14,"time_ms":2},{"solved":15,"time_ms":2},{"solved":16,"time_ms":2},{"solved":17,"time_ms":2},{"solved":18,"time_ms":2},{"solved":19,"time_ms":2},{"solved":20,"time_ms":2},{"solved":21,"time_ms":2},{"solved":22,"time_ms":2},{"solved":23,"time_ms":2},{"solved":24,"time_ms":2},{"solved":25,"time_ms":2},{"solved":26,"time_ms":2},{"solved":27,"time_ms":2},{"solved":28,"time_ms":2},{"solved":29,"time_ms":3},{"solved":30,"time_ms":3},{"solved":31,"time_ms":3},{"solved":32,"time_ms":3},{"solved":33,"time_ms":3},{"solved":34,"time_ms":3},{"solved":35,"time_ms":3},{"solved":36,"time_ms":3},{"solved":37,"time_ms":3},{"solved":38,"time_ms":3},{"solved":39,"time_ms":3},{"solved":40,"time_ms":3},{"solved":41,"time_ms":3},{"solved":42,"time_ms":3},{"solved":43,"time_ms":3},{"solved":44,"time_ms":3},{"solved":45,"time_ms":3},{"solved":46,"time_ms":3},{"solved":47,"time_ms":3},{"solved":48,"time_ms":3},{"solved":49,"time_ms":3},{"solved":50,"time_ms":3},{"solved":51,"time_ms":3},{"solved":52,"time_ms":3},{"solved":53,"time_ms":3},{"solved":54,"time_ms":4},{"solved":55,"time_ms":4},{"solved":56,"time_ms":4},{"solved":57,"time_ms":4},{"solved":58,"time_ms":4},{"solved":59,"time_ms":4},{"solved":60,"time_ms":4},{"solved":61,"time_ms":4},{"solved":62,"time_ms":4},{"solved":63,"time_ms":4},{"solved":64,"time_ms":4},{"solved":65,"time_ms":4},{"solved":66,"time_ms":4},{"solved":67,"time_ms":4},{"solved":68,"time_ms":4},{"solved":69,"time_ms":4},{"solved":70,"time_ms":4},{"solved":71,"time_ms":4},{"solved":72,"time_ms":4},{"solved":73,"time_ms":4},{"solved":74,"time_ms":4},{"solved":75,"time_ms":4},{"solved":76,"time_ms":4},{"solved":77,"time_ms":5},{"solved":78,"time_ms":5},{"solved":79,"time_ms":5},{"solved":80,"time_ms":5},{"solved":81,"time_ms":5},{"solved":82,"time_ms":5},{"solved":83,"time_ms":5},{"solved":84,"time_ms":5},{"solved":85,"time_ms":5},{"solved":86,"time_ms":5},{"solved":87,"time_ms":5},{"solved":88,"time_ms":5},{"solved":89,"time_ms":5},{"solved":90,"time_ms":5},{"solved":91,"time_ms":5},{"solved":92,"time_ms":5},{"solved":93,"time_ms":5},{"solved":94,"time_ms":5},{"solved":95,"time_ms":5},{"solved":96,"time_ms":5},{"solved":97,"time_ms":5},{"solved":98,"time_ms":5},{"solved":99,"time_ms":5},{"solved":100,"time_ms":5},{"solved":101,"time_ms":5},{"solved":102,"time_ms":5},{"solved":103,"time_ms":5},{"solved":104,"time_ms":6},{"solved":105,"time_ms":6},{"solved":106,"time_ms":6},{"solved":107,"time_ms":6},{"solved":108,"time_ms":6},{"solved":109,"time_ms":6},{"solved":110,"time_ms":6},{"solved":111,"time_ms":6},{"solved":112,"time_ms":6},{"solved":113,"time_ms":6},{"solved":114,"time_ms":6},{"solved":115,"time_ms":6},{"solved":116,"time_ms":6},{"solved":117,"time_ms":6},{"solved":118,"time_ms":6},{"solved":119,"time_ms":6},{"solved":120,"time_ms":6},{"solved":121,"time_ms":6},{"solved":122,"time_ms":6},{"solved":123,"time_ms":6},{"solved":124,"time_ms":6},{"solved":125,"time_ms":6},{"solved":126,"time_ms":6},{"solved":127,"time_ms":7},{"solved":128,"time_ms":7},{"solved":129,"time_ms":7},{"solved":130,"time_ms":7},{"solved":131,"time_ms":7},{"solved":132,"time_ms":7},{"solved":133,"time_ms":7},{"solved":134,"time_ms":7},{"solved":135,"time_ms":7},{"solved":136,"time_ms":7},{"solved":137,"time_ms":7},{"solved":138,"time_ms":7},{"solved":139,"time_ms":7},{"solved":140,"time_ms":7},{"solved":141,"time_ms":7},{"solved":142,"time_ms":7},{"solved":143,"time_ms":7},{"solved":144,"time_ms":7},{"solved":145,"time_ms":7},{"solved":146,"time_ms":7},{"solved":147,"time_ms":7},{"solved":148,"time_ms":7},{"solved":149,"time_ms":7},{"solved":150,"time_ms":8},{"solved":151,"time_ms":8},{"solved":152,"time_ms":8},{"solved":153,"time_ms":8},{"solved":154,"time_ms":8},{"solved":155,"time_ms":8},{"solved":156,"time_ms":8},{"solved":157,"time_ms":8},{"solved":158,"time_ms":8},{"solved":159,"time_ms":8},{"solved":160,"time_ms":8},{"solved":161,"time_ms":8},{"solved":162,"time_ms":8},{"solved":163,"time_ms":8},{"solved":164,"time_ms":8},{"solved":165,"time_ms":8},{"solved":166,"time_ms":9},{"solved":167,"time_ms":9},{"solved":168,"time_ms":9},{"solved":169,"time_ms":9},{"solved":170,"time_ms":9},{"solved":171,"time_ms":9},{"solved":172,"time_ms":9},{"solved":173,"time_ms":9},{"solved":174,"time_ms":9},{"solved":175,"time_ms":9},{"solved":176,"time_ms":9},{"solved":177,"time_ms":9},{"solved":178,"time_ms":10},{"solved":179,"time_ms":10},{"solved":180,"time_ms":10},{"solved":181,"time_ms":10},{"solved":182,"time_ms":10},{"solved":183,"time_ms":10},{"solved":184,"time_ms":10},{"solved":185,"time_ms":10},{"solved":186,"time_ms":10},{"solved":187,"time_ms":10},{"solved":188,"time_ms":10},{"solved":189,"time_ms":11},{"solved":190,"time_ms":11},{"solved":191,"time_ms":11},{"solved":192,"time_ms":11},{"solved":193,"time_ms":11},{"solved":194,"time_ms":11},{"solved":195,"time_ms":11},{"solved":196,"time_ms":11},{"solved":197,"time_ms":11},{"solved":198,"time_ms":11},{"solved":199,"time_ms":11},{"solved":200,"time_ms":11},{"solved":201,"time_ms":11},{"solved":202,"time_ms":11},{"solved":203,"time_ms":11},{"solved":204,"time_ms":11},{"solved":205,"time_ms":11},{"solved":206,"time_ms":11},{"solved":207,"time_ms":11},{"solved":208,"time_ms":11},{"solved":209,"time_ms":11},{"solved":210,"time_ms":12},{"solved":211,"time_ms":12},{"solved":212,"time_ms":12},{"solved":213,"time_ms":12},{"solved":214,"time_ms":12},{"solved":215,"time_ms":12},{"solved":216,"time_ms":12},{"solved":217,"time_ms":12},{"solved":218,"time_ms":12},{"solved":219,"time_ms":12},{"solved":220,"time_ms":12},{"solved":221,"time_ms":12},{"solved":222,"time_ms":12},{"solved":223,"time_ms":12},{"solved":224,"time_ms":12},{"solved":225,"time_ms":12},{"solved":226,"time_ms":12},{"solved":227,"time_ms":12},{"solved":228,"time_ms":12},{"solved":229,"time_ms":13},{"solved":230,"time_ms":13},{"solved":231,"time_ms":13},{"solved":232,"time_ms":13},{"solved":233,"time_ms":13},{"solved":234,"time_ms":13},{"solved":235,"time_ms":13},{"solved":236,"time_ms":13},{"solved":237,"time_ms":13},{"solved":238,"time_ms":13},{"solved":239,"time_ms":13},{"solved":240,"time_ms":13},{"solved":241,"time_ms":13},{"solved":242,"time_ms":13},{"solved":243,"time_ms":14},{"solved":244,"time_ms":14},{"solved":245,"time_ms":14},{"solved":246,"time_ms":14},{"solved":247,"time_ms":14},{"solved":248,"time_ms":14},{"solved":249,"time_ms":14},{"solved":250,"time_ms":14},{"solved":251,"time_ms":14},{"solved":252,"time_ms":14},{"solved":253,"time_ms":14},{"solved":254,"time_ms":14},{"solved":255,"time_ms":14},{"solved":256,"time_ms":14},{"solved":257,"time_ms":14},{"solved":258,"time_ms":14},{"solved":259,"time_ms":14},{"solved":260,"time_ms":14},{"solved":261,"time_ms":14},{"solved":262,"time_ms":14},{"solved":263,"time_ms":15},{"solved":264,"time_ms":15},{"solved":265,"time_ms":15},{"solved":266,"time_ms":15},{"solved":267,"time_ms":15},{"solved":268,"time_ms":15},{"solved":269,"time_ms":15},{"solved":270,"time_ms":15},{"solved":271,"time_ms":15},{"solved":272,"time_ms":15},{"solved":273,"time_ms":15},{"solved":274,"time_ms":15},{"solved":275,"time_ms":16},{"solved":276,"time_ms":16},{"solved":277,"time_ms":16},{"solved":278,"time_ms":16},{"solved":279,"time_ms":16},{"solved":280,"time_ms":16},{"solved":281,"time_ms":16},{"solved":282,"time_ms":16},{"solved":283,"time_ms":16},{"solved":284,"time_ms":16},{"solved":285,"time_ms":16},{"solved":286,"time_ms":16},{"solved":287,"time_ms":16},{"solved":288,"time_ms":16},{"solved":289,"time_ms":16},{"solved":290,"time_ms":16},{"solved":291,"time_ms":17},{"solved":292,"time_ms":17},{"solved":293,"time_ms":17},{"solved":294,"time_ms":17},{"solved":295,"time_ms":17},{"solved":296,"time_ms":17},{"solved":297,"time_ms":17},{"solved":298,"time_ms":17},{"solved":299,"time_ms":17},{"solved":300,"time_ms":17},{"solved":301,"time_ms":17},{"solved":302,"time_ms":17},{"solved":303,"time_ms":18},{"solved":304,"time_ms":18},{"solved":305,"time_ms":18},{"solved":306,"time_ms":18},{"solved":307,"time_ms":18},{"solved":308,"time_ms":18},{"solved":309,"time_ms":18},{"solved":310,"time_ms":18},{"solved":311,"time_ms":18},{"solved":312,"time_ms":18},{"solved":313,"time_ms":18},{"solved":314,"time_ms":19},{"solved":315,"time_ms":19},{"solved":316,"time_ms":19},{"solved":317,"time_ms":19},{"solved":318,"time_ms":19},{"solved":319,"time_ms":19},{"solved":320,"time_ms":19},{"solved":321,"time_ms":19},{"solved":322,"time_ms":19},{"solved":323,"time_ms":20},{"solved":324,"time_ms":20},{"solved":325,"time_ms":20},{"solved":326,"time_ms":20},{"solved":327,"time_ms":20},{"solved":328,"time_ms":20},{"solved":329,"time_ms":20},{"solved":330,"time_ms":20},{"solved":331,"time_ms":20},{"solved":332,"time_ms":21},{"solved":333,"time_ms":21},{"solved":334,"time_ms":21},{"solved":335,"time_ms":21},{"solved":336,"time_ms":21},{"solved":337,"time_ms":21},{"solved":338,"time_ms":21},{"solved":339,"time_ms":21},{"solved":340,"time_ms":22},{"solved":341,"time_ms":22},{"solved":342,"time_ms":22},{"solved":343,"time_ms":22},{"solved":344,"time_ms":22},{"solved":345,"time_ms":22},{"solved":346,"time_ms":22},{"solved":347,"time_ms":22},{"solved":348,"time_ms":22},{"solved":349,"time_ms":22},{"solved":350,"time_ms":22},{"solved":351,"time_ms":22},{"solved":352,"time_ms":22},{"solved":353,"time_ms":22},{"solved":354,"time_ms":22},{"solved":355,"time_ms":22},{"solved":356,"time_ms":23},{"solved":357,"time_ms":23},{"solved":358,"time_ms":23},{"solved":359,"time_ms":23},{"solved":360,"time_ms":23},{"solved":361,"time_ms":23},{"solved":362,"time_ms":23},{"solved":363,"time_ms":23},{"solved":364,"time_ms":23},{"solved":365,"time_ms":24},{"solved":366,"time_ms":24},{"solved":367,"time_ms":24},{"solved":368,"time_ms":24},{"solved":369,"time_ms":24},{"solved":370,"time_ms":24},{"solved":371,"time_ms":24},{"solved":372,"time_ms":25},{"solved":373,"time_ms":25},{"solved":374,"time_ms":25},{"solved":375,"time_ms":25},{"solved":376,"time_ms":25},{"solved":377,"time_ms":25},{"solved":378,"time_ms":26},{"solved":379,"time_ms":26},{"solved":380,"time_ms":26},{"solved":381,"time_ms":26},{"solved":382,"time_ms":26},{"solved":383,"time_ms":26},{"solved":384,"time_ms":26},{"solved":385,"time_ms":26},{"solved":386,"time_ms":27},{"solved":387,"time_ms":27},{"solved":388,"time_ms":27},{"solved":389,"time_ms":27},{"solved":390,"time_ms":27},{"solved":391,"time_ms":27},{"solved":392,"time_ms":27},{"solved":393,"time_ms":27},{"solved":394,"time_ms":27},{"solved":395,"time_ms":28},{"solved":396,"time_ms":28},{"solved":397,"time_ms":28},{"solved":398,"time_ms":28},{"solved":399,"time_ms":28},{"solved":400,"time_ms":29},{"solved":401,"time_ms":29},{"solved":402,"time_ms":29},{"solved":403,"time_ms":29},{"solved":404,"time_ms":29},{"solved":405,"time_ms":29},{"solved":406,"time_ms":29},{"solved":407,"time_ms":29},{"solved":408,"time_ms":29},{"solved":409,"time_ms":29},{"solved":410,"time_ms":30},{"solved":411,"time_ms":30},{"solved":412,"time_ms":30},{"solved":413,"time_ms":30},{"solved":414,"time_ms":30},{"solved":415,"time_ms":30},{"solved":416,"time_ms":30},{"solved":417,"time_ms":30},{"solved":418,"time_ms":30},{"solved":419,"time_ms":30},{"solved":420,"time_ms":30},{"solved":421,"time_ms":30},{"solved":422,"time_ms":30},{"solved":423,"time_ms":31},{"solved":424,"time_ms":31},{"solved":425,"time_ms":31},{"solved":426,"time_ms":31},{"solved":427,"time_ms":31},{"solved":428,"time_ms":32},{"solved":429,"time_ms":32},{"solved":430,"time_ms":32},{"solved":431,"time_ms":32},{"solved":432,"time_ms":32},{"solved":433,"time_ms":33},{"solved":434,"time_ms":33},{"solved":435,"time_ms":33},{"solved":436,"time_ms":33},{"solved":437,"time_ms":33},{"solved":438,"time_ms":34},{"solved":439,"time_ms":34},{"solved":440,"time_ms":34},{"solved":441,"time_ms":35},{"solved":442,"time_ms":35},{"solved":443,"time_ms":35},{"solved":444,"time_ms":35},{"solved":445,"time_ms":36},{"solved":446,"time_ms":36},{"solved":447,"time_ms":36},{"solved":448,"time_ms":36},{"solved":449,"time_ms":37},{"solved":450,"time_ms":37},{"solved":451,"time_ms":37},{"solved":452,"time_ms":37},{"solved":453,"time_ms":37},{"solved":454,"time_ms":37},{"solved":455,"time_ms":37},{"solved":456,"time_ms":38},{"solved":457,"time_ms":38},{"solved":458,"time_ms":38},{"solved":459,"time_ms":38},{"solved":460,"time_ms":38},{"solved":461,"time_ms":38},{"solved":462,"time_ms":39},{"solved":463,"time_ms":39},{"solved":464,"time_ms":39},{"solved":465,"time_ms":39},{"solved":466,"time_ms":39},{"solved":467,"time_ms":39},{"solved":468,"time_ms":39},{"solved":469,"time_ms":40},{"solved":470,"time_ms":40},{"solved":471,"time_ms":41},{"solved":472,"time_ms":41},{"solved":473,"time_ms":41},{"solved":474,"time_ms":41},{"solved":475,"time_ms":42},{"solved":476,"time_ms":42},{"solved":477,"time_ms":42},{"solved":478,"time_ms":42},{"solved":479,"time_ms":42},{"solved":480,"time_ms":42},{"solved":481,"time_ms":42},{"solved":482,"time_ms":42},{"solved":483,"time_ms":43},{"solved":484,"time_ms":43},{"solved":485,"time_ms":44},{"solved":486,"time_ms":44},{"solved":487,"time_ms":44},{"solved":488,"time_ms":45},{"solved":489,"time_ms":45},{"solved":490,"time_ms":46},{"solved":491,"time_ms":46},{"solved":492,"time_ms":46},{"solved":493,"time_ms":47},{"solved":494,"time_ms":47},{"solved":495,"time_ms":47},{"solved":496,"time_ms":47},{"solved":497,"time_ms":47},{"solved":498,"time_ms":47},{"solved":499,"time_ms":47},{"solved":500,"time_ms":48},{"solved":501,"time_ms":48},{"solved":502,"time_ms":48},{"solved":503,"time_ms":48},{"solved":504,"time_ms":48},{"solved":505,"time_ms":48},{"solved":506,"time_ms":49},{"solved":507,"time_ms":49},{"solved":508,"time_ms":49},{"solved":509,"time_ms":50},{"solved":510,"time_ms":50},{"solved":511,"time_ms":50},{"solved":512,"time_ms":50},{"solved":513,"time_ms":50},{"solved":514,"time_ms":50},{"solved":515,"time_ms":51},{"solved":516,"time_ms":51},{"solved":517,"time_ms":52},{"solved":518,"time_ms":52},{"solved":519,"time_ms":52},{"solved":520,"time_ms":52},{"solved":521,"time_ms":52},{"solved":522,"time_ms":52},{"solved":523,"time_ms":53},{"solved":524,"time_ms":53},{"solved":525,"time_ms":53},{"solved":526,"time_ms":53},{"solved":527,"time_ms":53},{"solved":528,"time_ms":54},{"solved":529,"time_ms":54},{"solved":530,"time_ms":54},{"solved":531,"time_ms":54},{"solved":532,"time_ms":55},{"solved":533,"time_ms":55},{"solved":534,"time_ms":56},{"solved":535,"time_ms":56},{"solved":536,"time_ms":56},{"solved":537,"time_ms":56},{"solved":538,"time_ms":56},{"solved":539,"time_ms":57},{"solved":540,"time_ms":57},{"solved":541,"time_ms":57},{"solved":542,"time_ms":57},{"solved":543,"time_ms":57},{"solved":544,"time_ms":58},{"solved":545,"time_ms":58},{"solved":546,"time_ms":58},{"solved":547,"time_ms":58},{"solved":548,"time_ms":59},{"solved":549,"time_ms":59},{"solved":550,"time_ms":59},{"solved":551,"time_ms":60},{"solved":552,"time_ms":60},{"solved":553,"time_ms":60},{"solved":554,"time_ms":60},{"solved":555,"time_ms":60},{"solved":556,"time_ms":60},{"solved":557,"time_ms":61},{"solved":558,"time_ms":61},{"solved":559,"time_ms":62},{"solved":560,"time_ms":62},{"solved":561,"time_ms":62},{"solved":562,"time_ms":63},{"solved":563,"time_ms":64},{"solved":564,"time_ms":64},{"solved":565,"time_ms":65},{"solved":566,"time_ms":65},{"solved":567,"time_ms":65},{"solved":568,"time_ms":65},{"solved":569,"time_ms":66},{"solved":570,"time_ms":66},{"solved":571,"time_ms":67},{"solved":572,"time_ms":67},{"solved":573,"time_ms":68},{"solved":574,"time_ms":68},{"solved":575,"time_ms":68},{"solved":576,"time_ms":69},{"solved":577,"time_ms":69},{"solved":578,"time_ms":69},{"solved":579,"time_ms":69},{"solved":580,"time_ms":70},{"solved":581,"time_ms":70},{"solved":582,"time_ms":71},{"solved":583,"time_ms":71},{"solved":584,"time_ms":71},{"solved":585,"time_ms":71},{"solved":586,"time_ms":71},{"solved":587,"time_ms":72},{"solved":588,"time_ms":72},{"solved":589,"time_ms":73},{"solved":590,"time_ms":73},{"solved":591,"time_ms":74},{"solved":592,"time_ms":75},{"solved":593,"time_ms":75},{"solved":594,"time_ms":75},{"solved":595,"time_ms":76},{"solved":596,"time_ms":76},{"solved":597,"time_ms":77},{"solved":598,"time_ms":77},{"solved":599,"time_ms":77},{"solved":600,"time_ms":78},{"solved":601,"time_ms":78},{"solved":602,"time_ms":78},{"solved":603,"time_ms":78},{"solved":604,"time_ms":78},{"solved":605,"time_ms":78},{"solved":606,"time_ms":79},{"solved":607,"time_ms":79},{"solved":608,"time_ms":80},{"solved":609,"time_ms":81},{"solved":610,"time_ms":81},{"solved":611,"time_ms":81},{"solved":612,"time_ms":81},{"solved":613,"time_ms":82},{"solved":614,"time_ms":82},{"solved":615,"time_ms":83},{"solved":616,"time_ms":84},{"solved":617,"time_ms":85},{"solved":618,"time_ms":85},{"solved":619,"time_ms":86},{"solved":620,"time_ms":86},{"solved":621,"time_ms":87},{"solved":622,"time_ms":87},{"solved":623,"time_ms":90},{"solved":624,"time_ms":90},{"solved":625,"time_ms":90},{"solved":626,"time_ms":91},{"solved":627,"time_ms":92},{"solved":628,"time_ms":92},{"solved":629,"time_ms":93},{"solved":630,"time_ms":93},{"solved":631,"time_ms":93},{"solved":632,"time_ms":94},{"solved":633,"time_ms":94},{"solved":634,"time_ms":95},{"solved":635,"time_ms":95},{"solved":636,"time_ms":95},{"solved":637,"time_ms":96},{"solved":638,"time_ms":96},{"solved":639,"time_ms":96},{"solved":640,"time_ms":98},{"solved":641,"time_ms":98},{"solved":642,"time_ms":98},{"solved":643,"time_ms":100},{"solved":644,"time_ms":100},{"solved":645,"time_ms":101},{"solved":646,"time_ms":101},{"solved":647,"time_ms":104},{"solved":648,"time_ms":105},{"solved":649,"time_ms":107},{"solved":650,"time_ms":108},{"solved":651,"time_ms":108},{"solved":652,"time_ms":113},{"solved":653,"time_ms":115},{"solved":654,"time_ms":116},{"solved":655,"time_ms":118},{"solved":656,"time_ms":119},{"solved":657,"time_ms":120},{"solved":658,"time_ms":120},{"solved":659,"time_ms":121},{"solved":660,"time_ms":121},{"solved":661,"time_ms":121},{"solved":662,"time_ms":122},{"solved":663,"time_ms":124},{"solved":664,"time_ms":125},{"solved":665,"time_ms":126},{"solved":666,"time_ms":129},{"solved":667,"time_ms":137},{"solved":668,"time_ms":139},{"solved":669,"time_ms":142},{"solved":670,"time_ms":142},{"solved":671,"time_ms":144},{"solved":672,"time_ms":150},{"solved":673,"time_ms":151},{"solved":674,"time_ms":155},{"solved":675,"time_ms":159},{"solved":676,"time_ms":161},{"solved":677,"time_ms":166},{"solved":678,"time_ms":168},{"solved":679,"time_ms":174},{"solved":680,"time_ms":191},{"solved":681,"time_ms":196},{"solved":682,"time_ms":205},{"solved":683,"time_ms":207},{"solved":684,"time_ms":211},{"solved":685,"time_ms":228},{"solved":686,"time_ms":240},{"solved":687,"time_ms":246},{"solved":688,"time_ms":260},{"solved":689,"time_ms":266},{"solved":690,"time_ms":280},{"solved":691,"time_ms":280},{"solved":692,"time_ms":282},{"solved":693,"time_ms":284},{"solved":694,"time_ms":312},{"solved":695,"time_ms":315},{"solved":696,"time_ms":318},{"solved":697,"time_ms":324},{"solved":698,"time_ms":330},{"solved":699,"time_ms":332},{"solved":700,"time_ms":338},{"solved":701,"time_ms":341},{"solved":702,"time_ms":347},{"solved":703,"time_ms":352},{"solved":704,"time_ms":362},{"solved":705,"time_ms":365},{"solved":706,"time_ms":390},{"solved":707,"time_ms":423},{"solved":708,"time_ms":458},{"solved":709,"time_ms":476},{"solved":710,"time_ms":503},{"solved":711,"time_ms":558},{"solved":712,"time_ms":559},{"solved":713,"time_ms":568},{"solved":714,"time_ms":575},{"solved":715,"time_ms":665},{"solved":716,"time_ms":691},{"solved":717,"time_ms":701},{"solved":718,"time_ms":725},{"solved":719,"time_ms":763},{"solved":720,"time_ms":807},{"solved":721,"time_ms":858},{"solved":722,"time_ms":861},{"solved":723,"time_ms":863},{"solved":724,"time_ms":871},{"solved":725,"time_ms":899},{"solved":726,"time_ms":988},{"solved":727,"time_ms":1045},{"solved":728,"time_ms":1079},{"solved":729,"time_ms":1102},{"solved":730,"time_ms":1237},{"solved":731,"time_ms":1263},{"solved":732,"time_ms":1324},{"solved":733,"time_ms":1368},{"solved":734,"time_ms":1394},{"solved":735,"time_ms":1412},{"solved":736,"time_ms":1497},{"solved":737,"time_ms":1582},{"solved":738,"time_ms":1650},{"solved":739,"time_ms":1756},{"solved":740,"time_ms":1787},{"solved":741,"time_ms":2038},{"solved":742,"time_ms":2194},{"solved":743,"time_ms":3016}]},"encoding":{"x":{"axis":{"grid":false,"title":"wall clock in milliseconds, logarithmic"},"field":"time_ms","scale":{"domain":[1,3200],"nice":false,"type":"log"},"type":"quantitative"},"y":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"problems solved"},"field":"solved","scale":{"domain":[0,780],"nice":false},"type":"quantitative"}},"mark":{"color":"#2c5fa8","interpolate":"step-after","strokeWidth":2,"type":"line"}},{"data":{"values":[{"time_ms":2000}]},"encoding":{"x":{"field":"time_ms","scale":{"domain":[1,3200],"nice":false,"type":"log"},"type":"quantitative"}},"mark":{"color":"#8a939c","strokeDash":[4,3],"type":"rule"}},{"data":{"values":[{"label":"budget","solved":700,"time_ms":2000}]},"encoding":{"text":{"field":"label","type":"nominal"},"x":{"field":"time_ms","scale":{"domain":[1,3200],"nice":false,"type":"log"},"type":"quantitative"},"y":{"field":"solved","type":"quantitative"}},"mark":{"align":"right","color":"#6b7280","dx":-5,"fontSize":10,"type":"text"}}],"title":{"anchor":"start","fontSize":13,"subtitle":"743 answers agreeing with TPTP, cumulative","subtitleColor":"#6b7280","subtitleFontSize":11,"text":"Baseline: solves accumulated against wall clock"},"width":560}
+```
+
+> The curve is flat well before the budget expires. What the prover solves, it solves quickly, and the problems it does not solve are not close to being solved: raising the budget moves few problems across, which is also why the ablation deltas are stable against the choice of $2000$ ms. A few solves lie to the right of the marked budget, which is the cooperative timeout of <a href="#threats-to-validity">§ Threats to Validity</a> rather than an error in the plot.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The three sections that follow read against one table of deltas from this baseline.
+
+```elixir
+summary
+|> Enum.map(fn row ->
+  %{
+    "Configuration" => row.configuration,
+    "Parameter" => row.parameter,
+    "Refutations" => row.theorems,
+    "Delta" => row.delta_theorems,
+    "Gained" => row.gained,
+    "Lost" => row.lost,
+    "Only solver" => row.uniquely_solved,
+    "Countermodels" => row.countermodels_agreeing,
+    "Contradicting" => row.countermodels_contradicting
+  }
+end)
+|> Kino.DataTable.new(name: "Sixteen configurations, refutations and deltas against the baseline")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Configuration" => "eager_unfold_defs", "Contradicting" => 2, "Countermodels" => 61, "Delta" => 48, "Gained" => 72, "Lost" => 24, "Only solver" => 44, "Parameter" => "unfold_defs: :eager", "Refutations" => 730}, %{"Configuration" => "no_beta_variant", "Contradicting" => 1, "Countermodels" => 62, "Delta" => 21, "Gained" => 41, "Lost" => 20, "Only solver" => 16, "Parameter" => "beta_variant: false", "Refutations" => 703}, %{"Configuration" => "prim_batch_16", "Contradicting" => 1, "Countermodels" => 61, "Delta" => 3, "Gained" => 21, "Lost" => 18, "Only solver" => 2, "Parameter" => "prim_subst_batch_size: 16", "Refutations" => 685}, %{"Configuration" => "prim_batch_4", "Contradicting" => 2, "Countermodels" => 61, "Delta" => 1, "Gained" => 24, "Lost" => 23, "Only solver" => 0, "Parameter" => "prim_subst_batch_size: 4", "Refutations" => 683}, %{"Configuration" => "baseline", "Contradicting" => 1, "Countermodels" => 61, "Delta" => 0, "Gained" => 0, "Lost" => 0, "Only solver" => 3, "Parameter" => "(none)", "Refutations" => 682}, %{"Configuration" => "no_prim_subst", "Contradicting" => 1, "Countermodels" => 61, "Delta" => -1, "Gained" => 23, "Lost" => 24, "Only solver" => 2, "Parameter" => "primitive_substitution: false", "Refutations" => 681}, %{"Configuration" => "no_suggestions", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -1, "Gained" => 34, "Lost" => 35, "Only solver" => 11, "Parameter" => "suggestions_enabled: false", "Refutations" => 681}, %{"Configuration" => "serial", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -2, "Gained" => 36, "Lost" => 38, "Only solver" => 10, "Parameter" => "worker_pool_size: 1", "Refutations" => 680}, %{"Configuration" => "no_instance_based_gamma", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -3, "Gained" => 16, "Lost" => 19, "Only solver" => 1, "Parameter" => "instance_based_gamma: false", "Refutations" => 679}, %{"Configuration" => "no_atom_decomposition", "Contradicting" => 3, "Countermodels" => 61, "Delta" => -12, "Gained" => 26, "Lost" => 38, "Only solver" => 3, "Parameter" => "atom_decomposition: false", "Refutations" => 670}, ...]
+```
+
+```elixir
+# `no_contradiction_agent` is four times the next largest effect and compresses
+# the rest of the matrix to nothing, so it is named in the subtitle instead of
+# being drawn.
+deltas =
+  summary
+  |> Enum.reject(&(&1.configuration == "no_contradiction_agent"))
+  |> Enum.map(fn row ->
+    sign =
+      cond do
+        row.delta_theorems > 0 -> "more"
+        row.delta_theorems < 0 -> "fewer"
+        true -> "baseline"
+      end
+
+    %{"configuration" => row.configuration, "delta" => row.delta_theorems, "sign" => sign}
+  end)
+
+# Sorting a discrete channel by another field is discarded when Vega-Lite merges
+# the shared scale of a layered spec, so the order is given as an explicit domain.
+order = deltas |> Enum.sort_by(& &1["delta"], :desc) |> Enum.map(& &1["configuration"])
+
+shared_axes = fn spec ->
+  spec
+  |> Vl.encode_field(:y, "configuration",
+    type: :nominal,
+    sort: order,
+    title: nil,
+    axis: [label_font_size: 11, domain: false, ticks: false]
+  )
+  |> Vl.encode_field(:x, "delta",
+    type: :quantitative,
+    scale: [domain: [-100, 60], nice: false],
+    axis: [grid: true, grid_color: "#e5e7eb", title: "refutations gained or lost"]
+  )
+end
+
+Vl.new(
+  width: 460,
+  height: 360,
+  title: [
+    text: "Refutations gained and lost against the baseline",
+    subtitle: "no_contradiction_agent is off this scale at -364",
+    anchor: :start,
+    font_size: 13,
+    subtitle_font_size: 11,
+    subtitle_color: "#6b7280"
+  ]
+)
+|> Vl.data_from_values(deltas)
+|> Vl.layers([
+  Vl.new()
+  |> Vl.mark(:bar, corner_radius_end: 2, height: [band: 0.65])
+  |> shared_axes.()
+  |> Vl.encode_field(:color, "sign",
+    type: :nominal,
+    scale: [domain: ["more", "baseline", "fewer"], range: ["#2c5fa8", "#8a939c", "#b02418"]],
+    legend: nil
+  ),
+  Vl.new()
+  |> Vl.mark(:text,
+    font_size: 10,
+    color: "#4b5563",
+    align: [expr: "datum.delta >= 0 ? 'left' : 'right'"],
+    dx: [expr: "datum.delta >= 0 ? 4 : -4"]
+  )
+  |> shared_axes.()
+  |> Vl.encode_field(:text, "delta", type: :quantitative)
+])
+|> Vl.config(view: [stroke: nil])
+```
+
+<!-- livebook:{"output":true} -->
+
+```vega-lite
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","config":{"view":{"stroke":null}},"data":{"values":[{"configuration":"eager_unfold_defs","delta":48,"sign":"more"},{"configuration":"no_beta_variant","delta":21,"sign":"more"},{"configuration":"prim_batch_16","delta":3,"sign":"more"},{"configuration":"prim_batch_4","delta":1,"sign":"more"},{"configuration":"baseline","delta":0,"sign":"baseline"},{"configuration":"no_prim_subst","delta":-1,"sign":"fewer"},{"configuration":"no_suggestions","delta":-1,"sign":"fewer"},{"configuration":"serial","delta":-2,"sign":"fewer"},{"configuration":"no_instance_based_gamma","delta":-3,"sign":"fewer"},{"configuration":"no_atom_decomposition","delta":-12,"sign":"fewer"},{"configuration":"no_finite_o_quantification","delta":-20,"sign":"fewer"},{"configuration":"gamma_limit_3","delta":-21,"sign":"fewer"},{"configuration":"gamma_limit_5","delta":-25,"sign":"fewer"},{"configuration":"no_demodulation","delta":-41,"sign":"fewer"},{"configuration":"no_iterative_deepening","delta":-87,"sign":"fewer"}]},"height":360,"layer":[{"encoding":{"color":{"field":"sign","legend":null,"scale":{"domain":["more","baseline","fewer"],"range":["#2c5fa8","#8a939c","#b02418"]},"type":"nominal"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"refutations gained or lost"},"field":"delta","scale":{"domain":[-100,60],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"configuration","sort":["eager_unfold_defs","no_beta_variant","prim_batch_16","prim_batch_4","baseline","no_prim_subst","no_suggestions","serial","no_instance_based_gamma","no_atom_decomposition","no_finite_o_quantification","gamma_limit_3","gamma_limit_5","no_demodulation","no_iterative_deepening"],"title":null,"type":"nominal"}},"mark":{"cornerRadiusEnd":2,"height":{"band":0.65},"type":"bar"}},{"encoding":{"text":{"field":"delta","type":"quantitative"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"refutations gained or lost"},"field":"delta","scale":{"domain":[-100,60],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"configuration","sort":["eager_unfold_defs","no_beta_variant","prim_batch_16","prim_batch_4","baseline","no_prim_subst","no_suggestions","serial","no_instance_based_gamma","no_atom_decomposition","no_finite_o_quantification","gamma_limit_3","gamma_limit_5","no_demodulation","no_iterative_deepening"],"title":null,"type":"nominal"}},"mark":{"align":{"expr":"datum.delta >= 0 ? 'left' : 'right'"},"color":"#4b5563","dx":{"expr":"datum.delta >= 0 ? 4 : -4"},"fontSize":10,"type":"text"}}],"title":{"anchor":"start","fontSize":13,"subtitle":"no_contradiction_agent is off this scale at -364","subtitleColor":"#6b7280","subtitleFontSize":11,"text":"Refutations gained and lost against the baseline"},"width":460}
+```
+
+> Bars to the right of zero are configurations that solve more than the baseline, so a bar to the right means the component being switched off is a net cost at this budget. Sign is carried by the direction of the bar as well as by the colour, so the figure needs no legend. `Gained` and `Lost` in the table are set differences rather than a decomposition of the delta: a configuration can be flat overall while exchanging tens of problems in both directions, which several of them do.
+
+<!-- livebook:{"break_markdown":true} -->
+
+### The Measurement Floor
+
+Four configurations sit within three problems of the baseline and still exchange between $16$ and $36$ problems in each direction. The exchange is not a trade of hard problems against easy ones. Of the $38$ problems the baseline solves and the serial configuration does not, the median takes $84$ ms and none takes longer than $1497$ ms; of the $36$ in the other direction, the median takes $257$ ms. Almost every exchanged problem is solved far inside the $2000$ ms budget by whichever configuration finds it, so the exchange reflects the order in which the search reaches branches rather than the time available to it.
+
+Two consequences follow. Set differences of this size are not evidence of a component's contribution, and treating the gain and loss sets as independent puts the standard deviation of a net delta at roughly eight problems. Each configuration was run once, and <a href="#threats-to-validity">§ Threats to Validity</a> records that the prover does not always answer identically on repeated runs, so the figures below support an ordering into tiers and not a point estimate of any single delta.
 
 ## Ablating the Agents
 
-[TODO: `contradiction_agent`, `suggestions_enabled`, `model_agent_backend`, one at a time. The three layers are described in <a href="07_extensions.livemd">Chapter 7</a>.]
+The three layers $\mathcal{CA}$, $\mathcal{SA}$ and $\mathcal{MA}$ of <a href="07_extensions.livemd">Chapter 7</a> are independently switchable, and two of them were switched here.
+
+Disabling `contradiction_agent` costs $364$ of $682$ refutations. Local ground closure alone, which is what remains when $\mathcal{CA}$ never dispatches a global search, solves $318$ problems. The result is the chapter's largest and it is the one the architecture predicts: rigidity makes closure a global constraint, and a prover that decides closure only locally is answering a weaker question. It also fixes the reading of the other rows, since a configuration that solves $318$ problems is not far enough into any search to be informative about the rules.
+
+Disabling `suggestions_enabled` costs one problem, which is inside the floor. $\mathcal{SA}$ is a heuristic over a complete calculus, so this is a statement about the value of the hints and not about the verdicts: the configuration exchanges $34$ problems against $35$ and is the third largest source of uniquely solved problems in the matrix, at $11$. The hints change which proofs are found without changing how many.
+
+> The comparison <a href="07_extensions.livemd">Chapter 7</a> proposes, counting the $\gamma$-instantiations $\mathcal{SA}$ avoids rather than the wall clock, cannot be made from this sweep: `TptpRunner` records `steps` and `rules_total` and not the per-rule breakdown, so `rule_gamma` and `rule_suggested_instantiate` are absent from the data. [TODO: either report that comparison from a run of `ShotTx.Benchmark.HolSuite`, where the per-rule counters are available, or narrow the sentence in Chapter 7 to what is measured here.]
+
+<!-- livebook:{"break_markdown":true} -->
+
+$\mathcal{MA}$ was not ablated. `model_agent_backend` (`:none`) held in all sixteen configurations, so the layer was inert throughout and this chapter reports nothing about it.
+
+> [TODO: Chapter 6 and Chapter 7 both state that Chapter 8 switches all three agents independently. Either correct those two sentences to name the two that were switched, or run the third configuration against a model finder backend.]
 
 ## Ablating the Calculus
 
-[TODO: `atom_decomposition`, `primitive_substitution`, `finite_o_quantification`, `instance_based_gamma`, `demodulation`, `beta_variant`, `eager_unfold_defs`. The rules are defined in <a href="03_tableaux.livemd">Chapter 3</a>.]
+The rules of <a href="03_tableaux.livemd">Chapter 3</a> divide into three groups by contribution.
+
+Two are substantial. Removing `demodulation` costs $41$ refutations, the largest calculus effect in the matrix, and loses $61$ problems while gaining $20$. Removing `atom_decomposition` costs $12$ and loses $38$ against $26$ gained, and is also the configuration with the most countermodel answers contradicting TPTP, at three, which fits the mechanism: without decomposition a branch reaches saturation earlier and the unchecked countermodel test is consulted sooner.
+
+Two concern the treatment of $o$-typed subterms. Removing `finite_o_quantification` costs $20$. Removing `instance_based_gamma` costs three and is inside the floor, although it exchanges $16$ problems against $19$.
+
+One change improves on the default. Setting `unfold_defs` to `:eager` gains $48$ refutations, gaining $72$ and losing $24$, and supplies $44$ uniquely solved problems, by a wide margin the largest such count in the matrix. Two qualifications belong with the figure. Ten of the $72$ gains were reported past the $2000$ ms budget, some as late as $6$ s, because the prover's timeout is cooperative and a worker notices it only between steps; the gain is real and smaller than $48$. The second qualification is that an eager unfolding enlarges the formulae a branch carries, so the improvement is specific to a corpus in which definitions are shallow.
+
+One rule is a net cost at this budget. Switching off `beta_variant` gains $21$ refutations while losing $20$ and gaining $41$, so the rule is not inert: it contributes $20$ refutations and displaces $41$.
 
 ## Ablating the Search Control
 
-[TODO: `iterative_deepening`, `formula_cost_strategy`, and the serial worker pool at `worker_pool_size: 1`.]
+Removing `iterative_deepening` costs $87$ refutations and loses $102$ problems against $15$ gained, which is the second largest effect in the matrix and the largest that is not an agent. The deepening schedule of <a href="03_tableaux.livemd">Chapter 3</a> is doing what it was introduced to do: the alternative, a single search at the full bound, exhausts the budget in a region of the space that contains no closure. It is also the one configuration in which the countermodel column moves, from $61$ agreeing answers to $54$, since a branch that saturates at a lower bound never reaches the state that would have closed it.
+
+The remaining search control parameter is the size of the worker pool, which the next section treats on its own.
 
 ## Parameter Sweeps
 
-[TODO: numeric sweeps at three values each, including `unification_depth` from <a href="04_unification.livemd">Chapter 4</a> and the term-order parameters of <a href="05_term_order.livemd">Chapter 5</a>.]
+Both numeric sweeps say that the default is the value to keep.
+
+The initial $\gamma$-limit was run at $1$, $3$ and $5$. The default of $1$ is best by a wide margin: $3$ costs $21$ refutations and $5$ costs $25$, and both lose about $38$ problems while gaining about $17$. A higher initial limit fills the first deepening round with instantiations that do not contribute to a closure, and the cost is not recovered in later rounds.
+
+The primitive substitution batch size was run at $4$, $8$ and $16$. The three values span three problems in total, which is inside the floor, and the direction is not consistent with a monotone effect. Neither parameter is worth exposing as a tuning surface, and neither should be quoted as tuned.
 
 ## Scaling with the Worker Pool
 
-[TODO]
+The pool is compared at `worker_pool_size` (`:auto`), which resolves to one worker per online scheduler, against `worker_pool_size: 1`. The two configurations differ in that parameter alone. To keep the comparison free of the parse cache and of the difference in total sweep time, the counters below are restricted to the $3383$ problems on which both configurations exhausted the budget, so the wall clock available to each is equal by construction.
+
+```elixir
+Ch8.Data.load("worker_pool.csv")
+|> Enum.map(fn row ->
+  %{
+    "Quantity" => row.quantity,
+    "Statistic" => row.statistic,
+    "Pool" => row.pool_auto,
+    "Serial" => row.pool_serial,
+    "Ratio" => row.ratio
+  }
+end)
+|> Kino.DataTable.new(name: "worker_pool_size :auto against 1")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Pool" => 3383, "Quantity" => "problems compared (budget exhausted under both)", "Ratio" => "", "Serial" => 3383, "Statistic" => "count"}, %{"Pool" => 5414451, "Quantity" => "steps", "Ratio" => 3.27, "Serial" => 1654858, "Statistic" => "total"}, %{"Pool" => 121798, "Quantity" => "branches closed locally", "Ratio" => 3.13, "Serial" => 38853, "Statistic" => "total"}, %{"Pool" => 66, "Quantity" => "peak open branches", "Ratio" => 3.14, "Serial" => 21, "Statistic" => "median"}, %{"Pool" => 2469, "Quantity" => "global closure searches", "Ratio" => 1.17, "Serial" => 2115, "Statistic" => "total"}, %{"Pool" => 0.46, "Quantity" => "global closure searches per 1000 steps", "Ratio" => 0.36, "Serial" => 1.28, "Statistic" => "rate"}, %{"Pool" => 705, "Quantity" => "problems solved by both", "Ratio" => "", "Serial" => 705, "Statistic" => "count"}, %{"Pool" => 61003, "Quantity" => "wall clock on those (ms)", "Ratio" => 1.28, "Serial" => 77785, "Statistic" => "total"}]
+```
+
+> `steps` and `branches closed locally` are worker-side counters; `global closure searches` is the number of times $\mathcal{CA}$ dispatched a search through `find_global_closure/3`. The last row is over the $705$ problems both configurations solved, where the ratio is a latency ratio rather than a throughput one.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The pool multiplies inference by $3.27$ and local branch closure by $3.13$ within the same wall clock, and increases the number of global closure searches by $1.17$. Expressed as a rate, the pool attempts $0.46$ global closures per thousand steps against the serial configuration's $1.28$. On the problems both configurations solve the pool is faster by a factor of $1.28$ in aggregate, and it solves two problems fewer.
+
+The parallel speedup therefore lands on branch expansion, and the component that produces roughly half of all refutations does not receive it. Three properties of $\mathcal{CA}$ account for that, and each is visible in the agent rather than inferred from the numbers.
+
+> At most one global closure search runs at a time: `check_global_closure/1` returns immediately when `pending_search` holds a task, so a clash or split arriving during a search increments `evidence_version` and is otherwise discarded. A search is dispatched only when `insufficient_options?/1` is false, which requires every open branch to carry at least one clash candidate, so a single branch without one suppresses the check for all of them. Once dispatched, `find_global_closure/3` enumerates the cartesian product of the per-branch option lists, so a dispatched search costs exponentially more as the frontier widens, and abandons at the proof deadline.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The frontier is what connects the three to the measurement. Additional workers raise the rate at which branch evidence arrives and hold three times as many branches open, and both of those make a dispatch less likely and a dispatched search more expensive. The pool supplies inference, and inference is not the resource the search is short of.
+
+This is the shape <a href="#chapter-references">[Bon00]</a> describes for a distributed search: the population of workers performs a different search from the sequential one rather than a faster version of it, and the additional work is not on the path to a closure. It is also the reading <a href="06_architecture.livemd">Chapter 6</a> anticipated when it partitioned the work into local expansion and one serialised global decision. The measurement locates the cost of that partition, and it suggests where concurrency would pay: in the closure search rather than in branch expansion, by allowing several searches in flight over disjoint subsets of the open branches, or by partitioning the cartesian product across processes.
+
+> [TODO: reserved for the `ca_probe` result. Two accounts remain open. Either $\mathcal{CA}$ is time-saturated, spending most of the budget inside `find_global_closure/3` with the share rising as the pool widens the frontier; or it is trigger-starved, with cheap searches rarely dispatched. `Stats` records `csp_calls_skipped` and `csp_duration_us` and `TptpRunner` exports neither, so the sweep cannot separate them. Fill in the share of wall clock spent inside the closure search under each pool size, and the number of suppressed checks, then state which account holds and delete this note.]
 
 ## Threats to Validity
 
-[TODO]
+**The countermodel verdict is inferred, not checked.** `Branch.model_certain?/2` tests pairwise syntactic non-complementarity over a saturated branch. It does not enforce congruence, does not use the two-element cardinality of $o$, and does not consult the unifier. Across the whole sweep, $22$ answers contradict the TPTP status, spanning five problems and at most three in any one configuration, and every one of them is a countermodel claimed on a problem that is a theorem. All five problems are ones whose conjecture holds only because $o$ has exactly two elements. No refutation in $81\,744$ rows contradicts the TPTP status. Countermodels are excluded from the scoring above for this reason, which also means the $61$ countermodel answers that agree with TPTP are unattested.
+
+**The prover does not always answer identically on repeated runs.** Repeated invocations on the same problem at the same configuration have produced different verdicts, and the variation persists at `worker_pool_size: 1`, so worker scheduling does not account for it on its own. Each configuration in this chapter was run once, and every delta therefore carries run-to-run noise that the study does not quantify.
+
+> [TODO: replace the preceding paragraph's last sentence once `ca_probe` has run with `CA_PROBE_REPEATS` above one, and give the number of problems that answered differently across repeats.]
+
+**The budget is cooperative.** A worker notices the deadline between steps, so a step that enters a long pre-unification enumeration overruns it. Forty-five solves across the sweep were recorded past $2000$ ms, as late as $6$ s, and `eager_unfold_defs` accounts for eleven of them. Those solves are counted here and would not be counted under a hard budget.
+
+**One problem in six never reached the prover.** The parse failures of <a href="#baseline">§ Baseline</a> bound every corpus-level statement in this chapter. The solved counts are counts over what was attempted.
+
+**Per-configuration wall clock is not comparable.** The baseline ran first and incurred the parse cost that populated the shared parse cache for every configuration after it. Per-problem times are comparable; per-configuration totals are not, and none is quoted.
+
+**Some results were discarded rather than recorded.** `ShotTx.Proof.interior_event/2` has no clause for `{:instantiate, ...}` trace entries, so a refutation whose proof tree contains one raises and the result is recorded as a prover error. This happened $57$ times across the sweep, about four per configuration, and those problems are counted as unsolved.
+
+**One configuration at a time.** The matrix is a one-at-a-time ablation, so it measures each component against the baseline and not against the others. Interactions between components are not measured, and the union of solves across all sixteen configurations is $905$ problems against the baseline's $743$, which bounds what a portfolio over these configurations could reach.
+
+**No comparison against other provers.** The chapter measures the contribution of the prover's own components. It does not place the prover against Satallax, Lash, Leo-III or Zipperposition, and the constant-factor cost of the BEAM that <a href="01_introduction.livemd">Chapter 1</a> concedes is not quantified here.
 
 ## Footnotes
 
 [TODO: cite]
+
+## Chapter References
+
+* __[Bon00]__ Maria Paola Bonacina. A taxonomy of parallel strategies for deduction. _Annals of Mathematics and Artificial Intelligence_, 29(1):223–257, 2000.
+* __[Sut08]__ Geoff Sutcliffe. The SZS ontologies for automated reasoning software. In _LPAR Workshops (KEAPPA/IWIL)_, CEUR Workshop Proceedings 418, pages 38–49, 2008.
+* __[Sut17]__ Geoff Sutcliffe. The TPTP problem library and associated infrastructure. From CNF to TH0, TPTP v6.4.0. _Journal of Automated Reasoning_, 59(4):483–502, 2017.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="07_extensions.livemd">Chapter 7: Peer Agents and Proof Reconstruction</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="09_conclusion.livemd">Chapter 9: Conclusion</a>

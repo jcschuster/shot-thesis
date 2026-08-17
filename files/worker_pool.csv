@@ -1,0 +1,9 @@
+quantity,statistic,pool_auto,pool_serial,ratio
+problems compared (budget exhausted under both),count,3383,3383,
+steps,total,5414451,1654858,3.27
+branches closed locally,total,121798,38853,3.13
+peak open branches,median,66,21,3.14
+global closure searches,total,2469,2115,1.17
+global closure searches per 1000 steps,rate,0.46,1.28,0.36
+problems solved by both,count,705,705,
+wall clock on those (ms),total,61003,77785,1.28

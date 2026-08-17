@@ -4,43 +4,645 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, "~> 0.0.3"},
+  {:shot_tx, github: "jcschuster/ShotTx"},
   {:kino, "~> 0.19.0"}
 ])
 ```
 
 ## Overview
 
-[TODO: what this appendix holds and how to run it. Every example is executable and its output is persisted.]
+The problems collected here are drawn from the structured set of Benzmüller and Brown <a href="#chapter-references">[BB05]</a>. That set is meant to be applied to a calculus before its soundness and completeness are analysed formally: the problems are individually small, and each isolates one technical issue, so a system that fails one has a located defect rather than a general weakness.
 
-## Propositional and First-Order Warm-Ups
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO]
+What makes the set worth using in place of a sample of TPTP is that its problems are graded along two dimensions, and each problem is annotated with the weakest assumptions under which it holds. The first dimension is extensionality. Varying the four properties $\eta$, $\xi$, $\mathfrak{f}$ and $\mathfrak{b}$ over the semantics of <a href="#chapter-references">[BBK04]</a>, which <a href="02_preliminaries.livemd">Chapter 2</a> builds on, yields eight classes of models, from $\mathfrak{M}_\beta$ where only $\beta$-equal terms are identified up to $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$, which is Henkin semantics. Every example is labelled with the largest class in which it is valid, and validity in a larger class implies validity in every smaller one. A problem valid in $\mathfrak{M}_\beta$ therefore tests no extensionality principle at all, and one valid only in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$ tests all of them.
 
-## Quantifier and Instantiation Examples
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO: examples exercising the $\gamma$-, $\delta$- and primitive-substitution rules of <a href="03_tableaux.livemd">Chapter 3</a>.]
+The second dimension is set comprehension. Which sets exist in a model depends on which logical constants the signature supplies, and instantiating a set variable during proof search is what the primitive substitution of <a href="03_tableaux.livemd#primitive-substitution">§ Primitive Substitution</a> does. Examples on that dimension are annotated with the signature they need rather than with a model class.
 
-## Boolean Extensionality
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO: renaming and instantiation worked end to end.]
+The two dimensions are what turn a run of this appendix into a statement about the calculus. Shot's rules commit it to particular principles: the equality rules give substitutivity, the renaming and instantiation rules of <a href="03_tableaux.livemd#boolean-extensionality-renaming-and-instantiation">§ Boolean Extensionality: Renaming and Instantiation</a> give $\mathfrak{b}$, the $\eta$-long $\beta$-normal representation of <a href="02_preliminaries.livemd">Chapter 2</a> gives $\eta$ without any rule firing, and the equality-expansion rules give the functional principles. Each section below names the example, the class it belongs to, and which of those commitments it is testing.
 
-## Equality and Demodulation
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO]
+Where a problem carries free constants, the ambient type environment is supplied by `with_context/2` rather than left to inference. Where an example is meant to exercise the rule loop rather than the preprocessing of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>, `simplification` is set to `:none` for that call, since the BDD would otherwise decide the propositional examples before any tableau rule fires.
+
+```elixir
+defmodule Util do
+  def prove_and_render problem, opts \\ [] do
+    res = ShotTx.Prover.prove problem, opts
+    IO.puts "Status: " <> ShotTx.Prover.format_result res
+    render res
+  end
+
+  def render res do
+    case res do
+      {:thm, proof} -> do_render proof
+      {:csa, _model, proof} -> do_render proof
+      {:timeout, partial_proof} -> do_render partial_proof
+      other -> other
+    end
+  end
+
+  defp do_render proof do
+    frame = Kino.Frame.new
+    Kino.render frame
+    diagram = proof |> ShotTx.Proof.to_mermaid |> Kino.Mermaid.new
+    Kino.Frame.render frame, diagram
+  end
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Util, <<70, 79, 82, 49, 0, 0, 12, ...>>, ...}
+```
+
+```elixir
+import Util
+import ShotDs.Hol.Sigils
+import ShotTx.Prover
+
+Logger.configure(level: :error)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## The Propositional and Quantifier Rules
+
+The first three problems fix the shape of an entry and exercise the rules that carry no higher-order content. $p \supset p$ closes by one $\alpha$-expansion and a ground clash, and runs with `simplification` set to `:none` so that the rule loop performs the closure rather than the BDD.
+
+```elixir
+prove_and_render ~f{ p => p }, simplification: :none
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Distribution of a universal quantifier over a conjunction exercises $\gamma$ on the assumption side and $\beta$ on the conclusion side. Each of the two conclusion branches closes under its own instance, so the global pre-unifier of <a href="06_architecture.livemd">Chapter 6</a> has two constraints to satisfy together, and the $\gamma$-rule fires twice because it is reinserted rather than consumed.
+
+$$
+\bigl(\forall \iota.\; p(1) \wedge q(1)\bigr) \supset \bigl((\forall \iota.\; p(1)) \wedge (\forall \iota.\; q(1))\bigr)
+$$
+
+```elixir
+prove_and_render ~f{
+  (![X:$i]: ((p @ X) & (q @ X)))
+  =>
+  ((![X:$i]: (p @ X)) & (![X:$i]: (q @ X)))
+}
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+The $\delta$-rule applies where an existential is asserted or a universal denied. Here the negated conclusion introduces a parameter and the assumption's $\gamma$-variable is bound to it.
+
+$$
+(\forall \iota.\; p(1)) \supset (\exists \iota.\; p(1))
+$$
+
+```elixir
+prove_and_render ~f{ (![X:$i]: (p @ X)) => (?[Y:$i]: (p @ Y)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## Equality
+
+Example 6 asks for reflexivity, symmetry and transitivity of equality, and Example 7 for its congruence properties. Both are valid in $\mathfrak{M}_\beta$, so neither tests extensionality; they establish that equality reasoning works before the later examples load anything onto it. Each is stated once for primitive equality and once for each definitional encoding, so that a calculus which handles one and not the others is identified. The primitive versions are decided by the equality rules of <a href="03_tableaux.livemd#equality-rules">§ Equality Rules</a> without any instantiation.
+
+$$
+\forall \iota.\; 1 = 1 \qquad\qquad
+\forall \iota, \iota.\; 2 = 1 \supset 1 = 2 \qquad\qquad
+\forall \iota, \iota, \iota.\; (3 = 2 \wedge 2 = 1) \supset 3 = 1
+$$
+
+```elixir
+prove_and_render ~f{ ![X:$i]: (X = X) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+prove_and_render ~f{ ![X:$i, Y:$i]: ((X = Y) => (Y = X)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+prove_and_render ~f{ ![X:$i, Y:$i, Z:$i]: (((X = Y) & (Y = Z)) => (X = Z)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+> The encoded variants replace $=$ by a defined relation, which turns a problem about the equality rules into one about $\gamma$ over a predicate variable. `HolSuite` carries six variants of each part: primitive equality, the three Leibniz encodings obtained by reading the definition with $\supset$, $\subset$ and $\equiv$, the Andrews encoding, and the extensional encoding. Transitivity is where the encodings separate, and it is also the problem on which the suggestion agent of <a href="07_extensions.livemd">Chapter 7</a> performs the most work.
+
+## Leibniz and Primitive Equality
+
+Example 8 asks whether Leibniz equality implies primitive equality, and it is the one problem in the set whose status as a theorem is argued rather than assumed. It holds in every model satisfying property $\mathfrak{q}$, which is what makes Leibniz equality a definition of equality at all, and Henkin's original models do not satisfy it <a href="#chapter-references">[BB05]</a>. <a href="02_preliminaries.livemd">Chapter 2</a> takes the corresponding position by interpreting equality as identity and making this direction a Proposition only in separating frames, and the tableau rule that recovers it Skolemises the separating property. The problem is a direct test of that rule, and Shot does not close it within the bounds reached under iterative deepening.
+
+$$
+\bigl(\forall \iota {\to} o.\; 1(a) \equiv 1(b)\bigr) \supset a = b
+$$
+
+```elixir
+with_context(~e[a: $i, b: $i], fn ->
+  ~f{ (![P: $i>$o]: ((P @ a) <=> (P @ b))) => (a = b) }
+end)
+|> prove
+|> format_result
+|> IO.puts
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Timeout
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+The verdict is `Timeout` and not `:unknown`. The last section of this appendix takes up that distinction.
+
+## Extensionality: The Trivial Directions
+
+Example 9 is the pair of directions of functional and Boolean extensionality that are valid already in $\mathfrak{M}_\beta$, the largest class. They follow from substitutivity and need no extensionality rule, which is what makes them useful: a system that fails here has an equality-reasoning defect, and a failure on Example 10 or 11 can be attributed to the extensionality rules only once Example 9 passes.
+
+$$
+(\lambda \iota.\, f(1)) = (\lambda \iota.\, g(1)) \;\supset\; \forall \iota.\; f(1) = g(1)
+$$
+
+```elixir
+with_context(~e[f: $i>$i, g: $i>$i], fn ->
+  ~f{ (f = g) => (![X: $i]: ((f @ X) = (g @ X))) }
+end)
+|> prove_and_render
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## Boolean Extensionality: The Non-Trivial Direction
+
+Example 10 is the direction a calculus without a Boolean extensionality rule cannot obtain. It is valid in $\mathfrak{M}_{\beta\mathfrak{b}}$ and in no larger class, so it is the sharpest single test of property $\mathfrak{b}$: two equivalent formulae must be equal at type $o$, which is a statement about $\mathcal{D}_o$ having two elements and does not follow from congruence.
+
+$$
+\forall o, o.\; (2 \equiv 1) \supset 2 = 1
+$$
+
+```elixir
+prove_and_render ~f{ ![A:$o, B:$o]: ((A <=> B) => (A = B)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Examples 16 and 17 are also $\mathfrak{M}_{\beta\mathfrak{b}}$, and both place a Boolean argument where no connective governs it, which is the configuration the renaming and instantiation rules of <a href="03_tableaux.livemd#boolean-extensionality-renaming-and-instantiation">§ Boolean Extensionality: Renaming and Instantiation</a> exist to reach. In the first, $a \wedge b$ occurs as an argument of $p$ and the rules case-split on it; in the second, a formula is compared with its own negation.
+
+$$
+(p(a) \wedge p(b)) \supset p(a \wedge b) \qquad\qquad \neg\,(a = \neg a)
+$$
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+prove_and_render ~f{ ((p @ a) & (p @ b)) => (p @ (a & b)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+prove_and_render ~f{ ~ (a = (~ a)) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Example 18 nests the Boolean argument one level further: the argument of the outer $h$ is an equation between two applications of $h$. It is again $\mathfrak{M}_{\beta\mathfrak{b}}$, and the argument for it is a case analysis on that equation. If $h(\top)$ and $h(\bot)$ are equal the argument reduces to the assumption, and if they are not it reduces to an instance of reflexivity. The example runs with `simplification` set to `:none`, since the BDD reduces it before the rule loop is reached and the rule loop is the object of the example.
+
+$$
+h\bigl(h(\top) = h(\bot)\bigr) = h(\bot)
+$$
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+with_context(~e[h: $o>$i], fn ->
+  ~f{ (h @ ((h @ $true) = (h @ $false))) = (h @ $false) }
+end)
+|> prove_and_render(simplification: :none)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## De Morgan by Degrees
+
+Example 20 states one fact, De Morgan's law, at four strengths, and each strength is valid in a different class. It is the clearest illustration in the set of what the first dimension measures. Reading the two sides as equivalent needs nothing beyond $\beta$. Asserting them equal at type $o$ needs $\mathfrak{b}$. Abstracting both sides and asserting the abstractions equal needs $\xi$ as well. Replacing the left abstraction by the connective itself needs full functional extensionality, which is Henkin semantics.
+
+$$
+\forall o, o.\; (2 \wedge 1) \equiv \neg(\neg 2 \vee \neg 1)
+$$
+
+```elixir
+prove_and_render ~f{ ![X:$o, Y:$o]: ((X & Y) <=> (~ ((~ X) | (~ Y)))) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+The same statement with primitive equality in place of the equivalence is valid in $\mathfrak{M}_{\beta\mathfrak{b}}$ and no larger class.
+
+$$
+\forall o, o.\; (2 \wedge 1) = \neg(\neg 2 \vee \neg 1)
+$$
+
+```elixir
+prove_and_render ~f{ ![X:$o, Y:$o]: ((X & Y) = (~ ((~ X) | (~ Y)))) }
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Moving the binders outward turns the statement into an equation between two abstractions, valid in $\mathfrak{M}_{\beta\xi\mathfrak{b}}$. This is where the equality-expansion rules of <a href="03_tableaux.livemd#equality-rules">§ Equality Rules</a> have to descend under a binder before the Boolean rules can act. Note that `simplification: :deep` would close this instantly as de Morgan rules are solved by the BDD normalization of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>.
+
+$$
+(\lambda o, o.\; 2 \wedge 1) = (\lambda o, o.\; \neg(\neg 2 \vee \neg 1))
+$$
+
+```elixir
+prove_and_render ~f{
+  (^[U:$o, V:$o]: (U & V)) = (^[X:$o, Y:$o]: (~ ((~ X) | (~ Y))))
+}, simplification: :shallow
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+> The fourth strength replaces the left abstraction by $\wedge$ itself and is valid only in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$. `HolSuite` carries all four strengths in six encodings each. The pattern across them is that the primitive-equality form is closed at every strength, while the definitional encodings are closed at the two weaker strengths and time out at the two stronger ones, which places the difficulty in the interaction between $\gamma$ over a predicate variable and the extensionality rules rather than in either alone.
+
+## Primitive Substitution and Finite Domains
+
+Example 21 is valid in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$ and in no larger class, so it is a direct test of Henkin semantics: it states that a model has exactly four functions from truth values to truth values, and it holds only where both functional and Boolean extensionality are available. A witness for a variable of predicate type is a formula, and the $(\mathrm{prim})$ rule of <a href="03_tableaux.livemd#primitive-substitution">§ Primitive Substitution</a> enumerates approximations to one by fixing the outermost logical symbol <a href="#chapter-references">[And89]</a>. The problem supplies $p$ on the four elements of $\mathcal{D}_{o {\to} o}$ and asks for $p$ on every function of that type, so the witness has to be assembled rather than found among the branch's terms.
+
+$$
+\bigl(p(\lambda o.\, 1) \wedge p(\lambda o.\, \neg 1) \wedge p(\lambda o.\, \bot) \wedge p(\lambda o.\, \top)\bigr) \supset \forall o {\to} o.\; p(\lambda o.\, 2(1))
+$$
+
+```elixir
+prove_and_render ~f{
+  (
+    (p @ (^[X:$o]: X)) &
+    (p @ (^[X:$o]: (~X))) &
+    (p @ (^[X:$o]: $false)) &
+    (p @ (^[X:$o]: $true))
+  ) => (![Y:$o>$o]: (p @ Y))
+}
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+> The same problem is where $(\forall_{\mathrm{fin}})$ applies: $o {\to} o$ is a pure $o$-type, so `Generation.gen_o/1` enumerates its four elements and the quantifier expands linearly instead of through a free variable. With `finite_o_quantification` off, the quantifier is instantiated by the ordinary $\gamma$-rule and the four instances have to be recovered by $(\mathrm{prim})$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Example 12 asks for the $\eta$-expanded form of a constant to be interchangeable with the constant. It is valid in $\mathfrak{M}_{\beta\eta}$ and not in $\mathfrak{M}_\beta$, so a calculus that identifies only $\beta$-equal terms must fail it. Shot passes it without applying a rule, because terms are held in $\eta$-long $\beta$-normal form and $f$ is therefore stored $\eta$-expanded: the two sides of the implication are the same term, as the display shows. The commitment to $\eta$ is made by the representation of <a href="02_preliminaries.livemd">Chapter 2</a> rather than by an inference rule, which is worth stating because it means the commitment cannot be ablated.
+
+$$
+p(\lambda \iota.\, f(1)) \supset p(\lambda \iota.\, f(1))
+$$
+
+```elixir
+with_context(~e[f: $i>$i, p: ($i>$i)>$o], fn ->
+  ~f{ (p @ (^[X:$i]: (f @ X))) => (p @ f) }
+end)
+|> prove_and_render
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
 
 ## Higher-Order Unification
 
-[TODO: worked enumerations beyond the one in <a href="04_unification.livemd">Chapter 4</a>.]
+Example 27 belongs to the second dimension. It asks for a binary connective satisfying a specification, and it is valid provided the signature supplies $\vee$, or else $\neg$ and $\wedge$ from which $\vee$ can be built; with a signature too poor to define disjunction it is not a theorem at all. The existential ranges over a predicate of type $(o,o) {\to} o$, so the witness has to be built by $(\mathrm{prim})$ and then confirmed by unification against both sides of the equivalence, which exercises the enumeration of <a href="04_unification.livemd">Chapter 4</a> where the flex side is genuinely flexible.
 
-## Cantor and Other Landmarks
+$$
+\exists (o,o) {\to} o.\; \forall o, o.\; 3(2,1) \equiv (2 \vee 1)
+$$
 
-[TODO: the surjective Cantor theorem referenced in <a href="03_tableaux.livemd">Chapter 3</a>.]
+```elixir
+prove_and_render ~f{
+  ?[D:$o>$o>$o]: (![P:$o, Q:$o]: ((D @ P @ Q) <=> (P | Q)))
+}, simplification: :none
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## Cantor
+
+Example 31, the surjective Cantor theorem, is the largest problem in this appendix that Shot closes. It sits on both dimensions at once: it is valid in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$ and needs $\neg$ in the signature, since the refutation goes through the diagonal predicate and $(\mathrm{prim})$ has to construct it. Its negation asserts a surjection from $\iota$ onto $\iota {\to} o$. This theorem has a very small tableau proof in the core calculus.
+
+$$
+\neg\, \exists (\iota,\iota) {\to} o.\; \forall \iota {\to} o.\; \exists \iota.\; (\lambda \iota.\, 4(2,1)) = (\lambda \iota.\, 3(1))
+$$
+
+```elixir
+~f{
+  ~ ?[G:$i>$i>$o]: (![F:$i>$o]: (?[J:$i]: ((G @ J) = F)))
+}
+|> prove_and_render(
+  simplification: :none,
+  beta_variant: false,
+  suggestions_enabled: false
+)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: THM
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Example 32, the injective form, asserts an injection from $\iota {\to} o$ into $\iota$ and is not closed within the bounds reached. The problem is the hardest in the set, and its difficulty is that the needed set instantiations occur beneath other set instantiations <a href="#chapter-references">[BB05]</a>. Both forms are in `HolSuite`, and the pair states compactly what the search bounds cost.
 
 ## Countermodels
 
-[TODO: satisfiable inputs and the models reported for them.]
+A saturated branch that is decidably open is reported with the literals describing the model. The first problem is propositional and its countermodel is a truth assignment; it runs with `simplification` set to `:none` so that the branch rather than the BDD produces the assignment.
 
-## Failure Modes
+```elixir
+prove_and_render ~f{ (p | q) => (q | r) }, simplification: :none
+```
 
-[TODO: timeouts, exhausted branches, and the cases the calculus leaves undecided.]
+<!-- livebook:{"output":true} -->
+
+```
+Status: CSA
+p, ¬q, ¬r
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+The second is the primitive-substitution problem above with its conclusion negated. The reported model is the branch's literal set, and the four applications of $p$ that survive are its content.
+
+```elixir
+prove_and_render ~f{
+  (
+    (p @ (^[X:$o]: X)) &
+    (p @ (^[X:$o]: (~X))) &
+    (p @ (^[X:$o]: $false)) &
+    (p @ (^[X:$o]: $true))
+  ) => (~ (![Y:$o>$o]: (p @ Y)))
+}
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Status: CSA
+p (λ. 1), p (λ. ¬1), p (λ. ⊥), p (λ. ⊤)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## Bounds, Timeouts and the Unknown Verdict
+
+Every problem of the structured set that Shot does not close is reported as `Timeout`, and none is reported as `:unknown`. That follows from the search control rather than from the calculus. Under iterative deepening the $\gamma$-limit and the primitive-substitution depth rise whenever the pool stalls, so the search never runs out of work, and the wall clock set by `timeout` ($5000$ ms) is always the binding constraint.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The verdict `:unknown` is reachable with deepening disabled, which fixes the bounds and lets the search exhaust them. Example 8 is the case: at `initial_gamma_limit` $1$ and `initial_prim_limit` $1$ the search exhausts and reports `:unknown`, while at $3$ and $2$ the space is large enough that the clock runs out first and the verdict returns to `Timeout`.
+
+```elixir
+leibniz_to_primitive =
+  with_context(~e[a: $i, b: $i], fn ->
+    ~f{ (![P: $i>$o]: ((P @ a) <=> (P @ b))) => (a = b) }
+  end)
+
+for opts <- [
+      [timeout: 60_000],
+      [timeout: 60_000, iterative_deepening: false],
+      [
+        timeout: 60_000,
+        iterative_deepening: false,
+        initial_gamma_limit: 3,
+        initial_prim_limit: 2
+      ]
+    ] do
+  {us, res} = :timer.tc(fn -> prove(leibniz_to_primitive, [], opts) end)
+  IO.puts "#{inspect(opts)} -> #{format_result(res)} in #{div(us, 1000)} ms"
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[timeout: 60000] -> Timeout in 66529 ms
+[timeout: 60000, iterative_deepening: false] -> UNK in 44511 ms
+[timeout: 60000, iterative_deepening: false, initial_gamma_limit: 3, initial_prim_limit: 2] -> Timeout in 65016 ms
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[:ok, :ok, :ok]
+```
+
+> The consequence for <a href="08_evaluation.livemd">Chapter 8</a> is that a run scored by verdict alone cannot distinguish a problem the calculus cannot reach from one it did not reach in time. Separating the two takes a second run with `iterative_deepening` off at fixed bounds, and the ablation reports both.
+
+## Chapter References
+
+* __[And89]__ Peter B. Andrews. On connections and higher-order logic. _Journal of Automated Reasoning_, 5(3):257–291, 1989.
+* __[BB05]__ Christoph Benzmüller and Chad E. Brown. A structured set of higher-order problems. In _Theorem Proving in Higher Order Logics (TPHOLs 2005)_, LNCS 3603, pages 66–81. Springer, 2005.
+* __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="90_bibliography.livemd">Bibliography</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a>

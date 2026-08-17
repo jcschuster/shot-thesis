@@ -15,37 +15,37 @@ The observation <a href="06_architecture.livemd">Chapter 6</a> closed on was not
 
 Two of them are the peer agents <a href="06_architecture.livemd">Chapter 6</a> placed but did not open. $\mathcal{SA}$ turns evidence about one branch into a cheap instantiation hint for another. $\mathcal{MA}$ turns a saturated branch into a satisfiability probe against an external model finder. Neither is required for the calculus to be complete, and both are ablatable, which is what makes them measurable in <a href="08_evaluation.livemd">Chapter 8</a>.
 
-The third component reads a different shared table. Every branch writes its own derivation history to `:traces` as it proceeds, and a session ending in a verdict has, in that table, what is needed to rebuild the derivation as a textbook object. Proof reconstruction is what makes the concurrent search accountable: whatever route the population of workers took, the artefact returned is an ordinary tableau proof.
+The third component reads a different shared table. Every branch writes its own derivation history to `:traces` as it proceeds, and a session ending in a verdict has, in that table, what is needed to rebuild the derivation as a textbook object. Proof reconstruction makes the result of the concurrent search checkable: whatever route the population of workers took, the artefact returned is an ordinary tableau proof.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Agent-based proof search has a direct ancestor in $\Omega$-Ants [TODO: cite Benzmüller & Sorge, $\Omega$-Ants; and Wisniewski & Benzmüller for its higher-order successor], where concurrent processes compute possible instantiations for the arguments of an inference rule and record them on a blackboard from which a command is eventually chosen. Two differences matter here. In $\Omega$-Ants the blackboard is the coordination point and the agents exist to fill it, whereas here the shared tables are passive and coordination happens through a broadcast, so an agent is added by subscribing rather than by registration with a scheduler. $\Omega$-Ants agents also suggest the next command to a proof planner, whereas $\mathcal{SA}$ and $\mathcal{MA}$ never direct the search: one publishes hints that workers may ignore, the other answers a question the search did not ask. The blackboard idea is shared; the direction of control is inverted.
+> Agent-based proof search has a direct predecessor in $\Omega$-Ants <a href="#chapter-references">[BS98, Sor01]</a>, and in the higher-order successor of that design inside Leo-III <a href="#chapter-references">[SWB16, SB21]</a>, where concurrent processes compute possible instantiations for the arguments of an inference rule and record them on a blackboard from which a command is eventually chosen, a selection Leo-III makes by an approximation algorithm for combinatorial auctions over the read and write sets of the proposed tasks. Leo-III's rule-level agent mode was reported as "not competitive and still experimental", and its competitive configuration runs a sequential loop inside one agent <a href="#chapter-references">[BSW17]</a>. Two differences matter here. In $\Omega$-Ants the blackboard is the coordination point and the agents exist to fill it, whereas here the shared tables are passive and coordination happens through a broadcast, so an agent is added by subscribing rather than by registration with a scheduler. $\Omega$-Ants agents also suggest the next command to a proof planner, whereas $\mathcal{SA}$ and $\mathcal{MA}$ never direct the search: one publishes hints that workers may ignore, the other answers a question the search did not ask. The blackboard idea is shared; the direction of control is inverted.
 
 ## The Suggestion Agent
 
-A branch never applies a substitution to itself. <a href="03_tableaux.livemd">Chapter 3</a>'s rules are binding-free by construction and <a href="06_architecture.livemd">Chapter 6</a>'s workers may not commit to a value for any free variable, so the pre-unifier $\Theta$ closing the tableau lives in $\mathcal{CA}$'s solution and arrives, if it arrives, at the end. The consequence is easy to overlook: the branch never sees the _structure_ that applying $\Theta$'s substitution $\theta$ would have introduced. Once $X$ becomes $t$, new redexes appear, heads that were flexible become rigid, and formulae that were opaque become decomposable. Each of those is a rule application the branch could have made, and a closing pair it could have found. Rigidity buys soundness under parallel search at this cost.
+A branch never applies a substitution to itself. <a href="03_tableaux.livemd">Chapter 3</a>'s rules are binding-free by construction and <a href="06_architecture.livemd">Chapter 6</a>'s workers may not commit to a value for any free variable, so the pre-unifier $\Theta$ closing the tableau lives in $\mathcal{CA}$'s solution and arrives, if it arrives, at the end. The consequence is easily overlooked: the branch never observes the _structure_ that applying $\Theta$'s substitution $\theta$ would have introduced. Once $X$ becomes $t$, new redexes appear, heads that were flexible become rigid, and formulae that were opaque become decomposable. Each of those is a rule application the branch could have made, and a closing pair it could have found. This is the cost at which rigidity secures soundness under parallel search.
 
 The calculus can still reach that structure. It reaches it through $\gamma$, which enumerates instances, and through primitive substitution, which enumerates general bindings. Both are the most expensive rules in <a href="03_tableaux.livemd">Chapter 3</a>'s cost table, and both enumerate blindly. $\mathcal{SA}$ reaches the same structure at lower cost, by taking a substitution that another branch's evidence has already shown plausible and offering it here as an ordinary instantiation step.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Instantiation Hint).__ Let $\varphi, \psi$ be a disagreeing literal pair reported by some branch, and let $\sigma$ be a pre-unifier of that pair. For each binding $X \mapsto t$ in $\sigma$, let $\Phi$ be the recipe of the rule that minted $X$ and $B_0$ the branch on which it was minted. The pair $(\Phi, t)$ is an _instantiation hint_ born on $B_0$. A branch $B$ _admits_ the hint if $B_0$ is a prefix of $B$, and applying it adds $\Phi(t)$ to $B$ as an ordinary instance.
+__Definition (Instantiation Hint).__ Let $\varphi, \psi$ be a disagreeing literal pair reported by some branch, and let $\sigma$ be a pre-unifier of that pair. For each binding $X \mapsto t$ in $\sigma$, let $\Phi$ be the matrix of the rule that introduced $X$ and $B_0$ the branch on which it was introduced. The pair $(\Phi, t)$ is an _instantiation hint_ _originating on_ $B_0$. A branch $B$ _admits_ the hint if $B_0$ is a prefix of $B$, and applying it adds $\Phi(t)$ to $B$ as an ordinary instance.
 
 <!-- livebook:{"break_markdown":true} -->
 
 The definition rests on three conditions, and each is a point at which no hint is produced.
 
-The first is the recipe. A hint is meaningful only if the quantifier that minted $X$ can be found again, which is what the `:provenance` table records: for every fresh variable, the recipe, the source formula, the branch of birth, and whether the variable came from $\gamma$ or from a prim-subst hole. Without that record a unifier is a fact about terms; with it, a unifier becomes a fact about a rule some branch still has available.
+The first is the matrix. A hint is meaningful only if the quantifier that introduced $X$ can be identified again, which is what the `:provenance` table records: for every fresh variable, the matrix, the source formula, the originating branch, and whether the variable came from $\gamma$ or from a prim-subst hole. Without that record a unifier is a statement about terms; with it, a unifier becomes a statement about a rule that some branch still has available.
 
-The second is the birth branch, which makes the hint sound to reuse. Hints are keyed by branch prefix, and a worker splices only those born on an ancestor of the branch it holds. A hint born on a sibling is not admitted, because the recipe it names need not exist there.
+The second is the originating branch, which is what makes reuse of a hint sound. Hints are keyed by branch prefix, and a worker splices only those originating on an ancestor of the branch it holds. A hint originating on a sibling is not admitted, since the matrix it names need not exist there.
 
-The third is the type. A hint fires as an application of the recipe to the term, so the term must inhabit the recipe's argument type. A well-typed $\sigma$ does not guarantee this, because the holes of a general binding carry the binding's types rather than the quantified variable's. Mismatches are dropped at publication.
+The third is the type. A hint is applied as an application of the matrix to the term, so the term must inhabit the matrix's argument type. A well-typed $\sigma$ does not guarantee this, because the holes of a general binding carry the binding's types rather than the quantified variable's. Mismatches are dropped at publication.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The pipeline is five steps over one table. $\mathcal{SA}$ ingests `{:local_clashes, branch_id, pairs}` from the topic $\mathcal{CA}$ also reads. It unifies each pair on its own and takes at most one solution, since a multi-pair regime would be the CSP and the CSP belongs to $\mathcal{CA}$; $\mathcal{SA}$ is therefore weaker than $\mathcal{CA}$ by construction. Each binding of the resulting $\sigma$ is looked up in `:provenance`, type-checked against the recipe, and written to the `:suggestions` table under the key `{birth_branch, recipe, term}` with `:ets.insert_new/2`, so a hint published twice is stored once. A successful insert dispatches `:work_available`, which wakes idle workers instead of leaving them to the next scan.
+> The pipeline is five steps over one table. $\mathcal{SA}$ ingests `{:local_clashes, branch_id, pairs}` from the topic $\mathcal{CA}$ also reads. It unifies each pair on its own and takes at most one solution, since a multi-pair regime would be the CSP and the CSP belongs to $\mathcal{CA}$; $\mathcal{SA}$ is therefore weaker than $\mathcal{CA}$ by construction. Each binding of the resulting $\sigma$ is looked up in `:provenance`, type-checked against the matrix, and written to the `:suggestions` table under the key `{birth_branch, recipe, term}` with `:ets.insert_new/2`, so a hint published twice is stored once. A successful insert dispatches `:work_available`, which wakes idle workers instead of leaving them to the next scan.
 > 
-> Splicing happens at checkout and at yield rather than at publication. A worker holding a branch walks its own ancestor prefixes, matches them against the table, and injects `{:suggested_instantiate, recipe, term}` onto the branch's queue. The synthetic rule is priced at $2$, cheaper than $\gamma$ and far cheaper than prim-subst, but dearer than the atomic rule at $1$, so a hint never preempts closure detection on a branch about to close.
+> Splicing happens at checkout and at yield rather than at publication. A worker holding a branch traverses its own ancestor prefixes, matches them against the table, and injects `{:suggested_instantiate, recipe, term}` onto the branch's queue. The synthetic rule is priced at $2$, cheaper than $\gamma$ and far cheaper than prim-subst, but dearer than the atomic rule at $1$, so a hint never preempts closure detection on a branch about to close.
 > 
 > Dropping a type-mismatched hint costs nothing. A hint is a search shortcut, and this one names no formula the branch could hold. Publishing it would raise inside rule application, on a different branch from the one that produced the evidence, and cost that branch its verdict.
 
@@ -69,30 +69,28 @@ alias ShotTx.Prover
 require Logger
 Logger.configure(level: :error)
 
-conjecture =
-  with_context ~e[p: $i > $o, a: $i, b: $i], fn ->
-    ~f"(![X: $i]: (p @ X)) => ((p @ a) & (p @ b))"
-  end
+conjecture = with_context ~e[p: $i > $o, a: $i, b: $i], fn ->
+  ~f"(![X: $i]: (p @ X)) => ((p @ a) & (p @ b))"
+end
 
 for enabled <- [true, false] do
-  {micros, result} =
-    :timer.tc(fn -> Prover.prove(conjecture, suggestions_enabled: enabled) end)
+  {micros, result} = :timer.tc(fn -> Prover.prove(conjecture, suggestions_enabled: enabled) end)
 
   {enabled, Prover.format_result(result), div(micros, 1000)}
 end
 |> Enum.map_join("\n", fn {e, v, ms} ->
   "* `suggestions_enabled: #{e}` gives `#{v}` in #{ms} ms"
 end)
-|> Kino.Markdown.new()
+|> Kino.Markdown.new
 ```
 
-> Both rows report `THM`. $\mathcal{SA}$ is a heuristic over a complete calculus, so switching it off may cost steps but never the verdict; a discrepancy here would indicate a bug in the splice rather than a property of the problem. <a href="08_evaluation.livemd">Chapter 8</a> runs the comparison across the benchmark set, where the quantity of interest is not wall clock but the number of $\gamma$-instantiations avoided.
+> Both rows report `THM`. $\mathcal{SA}$ is a heuristic over a complete calculus, so switching it off may cost steps but never the verdict; a discrepancy here would indicate a bug in the splice rather than a property of the problem. <a href="08_evaluation.livemd">Chapter 8</a> runs the comparison across the benchmark set, where the quantity of interest is the number of $\gamma$-instantiations avoided rather than wall clock.
 
 ## The Model Agent
 
 $\mathcal{MA}$ inverts the question. $\mathcal{CA}$ collects evidence towards a global pre-unifier $\Theta$ closing every branch, while $\mathcal{MA}$ takes a single branch that has stopped producing rules and asks an external tool whether it describes a model. A `:sat` verdict on any branch ends the session, because one satisfiable branch witnesses satisfiability of the whole input.
 
-This is a separate agent rather than a check inside the branch because of the boundary drawn in <a href="03_tableaux.livemd">Chapter 3</a>. `model_certain?` decides an under-approximation of openness using only what the calculus can see, namely identity, bounded unifiability, and the oriented equations of $\mathcal{E}(B)$, and it reports _exhausted_ rather than open whenever extensionality would be needed to settle a pair. $\mathcal{MA}$ returns some of those exhausted branches to the space of answers by asking a tool that decides more than the calculus does.
+This is a separate agent rather than a check inside the branch because of the boundary drawn in <a href="03_tableaux.livemd">Chapter 3</a>. `model_certain?` decides an under-approximation of openness using only what the calculus can see, namely identity, bounded unifiability, and the oriented equations of $\mathcal{E}(B)$, and it reports _exhausted_ rather than open whenever extensionality would be needed to settle a pair. $\mathcal{MA}$ decides some of those exhausted branches by asking a tool that decides more than the calculus does.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -119,7 +117,7 @@ The agent is a timer loop. Each element of it keeps an expensive external call f
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The backend is a behaviour with two callbacks, split so a probe never blocks the agent's mailbox: a dispatch returning a handle immediately, and a wait on that handle bounded by a time budget. Three implementations exist. `:none` is the default, under which the agent starts, logs once, and never schedules a tick, so the layer costs one idle process. A stub returning `:unknown` unconditionally is the safe choice for tests. The Isabelle/Nitpick backend sends the projected problem to a warm server and runs `nitpick[satisfy]`, which consumes the shape the projection produces, namely axioms without a conjecture. Because the behaviour is a plain callback module, a different finder is a new module and nothing further.
+> The backend is a behaviour with two callbacks, split so a probe never blocks the agent's mailbox: a dispatch returning a handle immediately, and a wait on that handle bounded by a time budget. Three implementations exist. `:none` is the default, under which the agent starts, logs once, and never schedules a tick, so the layer costs one idle process. A stub returning `:unknown` unconditionally is the safe choice for tests. The Isabelle/Nitpick backend <a href="#chapter-references">[BN10]</a> sends the projected problem to a warm server and runs `nitpick[satisfy]`, which consumes the shape the projection produces, namely axioms without a conjecture. Because the behaviour is a plain callback module, a different finder is a new module and nothing further.
 > 
 > When $\mathcal{MA}$ is about to declare `:sat` it checks whether the session has already been decided, and logs an error and emits telemetry if so. A simultaneous `:sat` from $\mathcal{MA}$ and `:unsat` from $\mathcal{CA}$ on a consistent problem is impossible, so the check does not guard against a race. It is an alarm for a soundness bug in the frontier or in atom decomposition, placed where such a bug would first become visible.
 
@@ -128,12 +126,11 @@ The agent is a timer loop. Each element of it keeps an expensive external call f
 With the backend at its default, satisfiability is still reported for branches the calculus can settle by itself, and the result carries a model rather than a derivation.
 
 ````elixir
-countermodel =
-  with_context ~e[p: $i > $o, a: $i, b: $i], fn ->
-    ~f"(p @ a) => (p @ b)"
-  end
+csa = with_context ~e[p: $i > $o, a: $i, b: $i], fn ->
+  ~f"(p @ a) => (p @ b)"
+end
 
-Prover.prove(countermodel)
+Prover.prove(csa)
 |> Prover.format_result()
 |> then(&Kino.Markdown.new("```\n#{&1}\n```"))
 ````
@@ -142,11 +139,11 @@ Prover.prove(countermodel)
 
 ## Proof Reconstruction
 
-The prover returns more than a verdict. On `:unsat` it returns a derivation tree, which is not recorded during the search but rebuilt afterwards from what the branches left behind.
+The prover returns more than a verdict. On `:unsat` it returns a derivation tree, which is rebuilt after the search from the trace records the branches wrote as they proceeded. Recovering a readable derivation from a compact record of a search is the problem expansion trees <a href="#chapter-references">[Mil87]</a> address for higher-order proofs.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Trace).__ The _trace_ of a branch is the sequence of entries $(s, \rho, \bar{p})$, oldest first, where $\rho$ is a rule applied on that branch, $s$ the formula it was applied to, and $\bar{p}$ the formulae it produced. A branch that closed conditionally carries a final entry naming the pair whose unification closes it.
+__Definition (Trace).__ The _trace_ of a branch is the sequence of entries $(s, r, \bar{p})$, oldest first, where $r$ is a rule applied on that branch, $s$ the formula it was applied to, and $\bar{p}$ the formulae it produced. A branch that closed conditionally carries a final entry naming the pair whose unification closes it.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -172,17 +169,16 @@ __Definition (Derivation).__ Given the linearisations of all closed branches, th
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Sharing by prefix is what collapses the parallel runs into one derivation. Two branches diverging at a $\beta$-rule share every step above it once and fork below it, and a run without branching stays a single chain. The initial formulae, the assumptions together with the negated conclusion, become `given` steps chained above the whole derivation, and each step is numbered as it is created, so the `sources` of a step are line numbers in the ordinary sense. Closure leaves cite the pair that closed them, and a countermodel leaf carries the branch's atoms and definitions instead of a formula. The seeded $\top$ and $\neg\bot$ of <a href="03_tableaux.livemd#literal-processing">§ Literal Processing</a> are stripped from that leaf and from every reported model, so the two entries every branch is born with are never mistaken for facts the search established.
+> Sharing by prefix is what merges the parallel runs into one derivation. Two branches diverging at a $\beta$-rule share every step above it once and fork below it, and a run without branching stays a single chain. The initial formulae, the assumptions together with the negated conclusion, become `given` steps chained above the whole derivation, and each step is numbered as it is created, so the `sources` of a step are line numbers in the ordinary sense. Closure leaves cite the pair that closed them, and a countermodel leaf carries the branch's atoms and definitions instead of a formula. The seeded $\top$ and $\neg\bot$ of <a href="03_tableaux.livemd#literal-processing">§ Literal Processing</a> are stripped from that leaf and from every reported model, so the two entries every branch starts with are never mistaken for facts the search established.
 
 <!-- livebook:{"break_markdown":true} -->
 
 The conjecture <a href="06_architecture.livemd">Chapter 6</a> proved end to end can be rendered as text rather than as a diagram, which shows the numbering and the sources directly.
 
 ````elixir
-theorem =
-  with_context ~e[p: $i > $o, a: $i], fn ->
-    ~f"![X: $i]: (p @ X) => p @ a"
-  end
+theorem = with_context ~e[p: $i > $o, a: $i], fn ->
+  ~f"![X: $i]: (p @ X) => p @ a"
+end
 
 {:thm, proof} = Prover.prove(theorem, simplification: :none)
 
@@ -197,8 +193,20 @@ proof
 
 The three components of this chapter differ in function and agree in how they attach to the search. $\mathcal{SA}$ reads the evidence stream and writes a table that workers consult. $\mathcal{MA}$ reads the branch queues and writes to the Manager. Reconstruction reads a table and writes nothing. None of them is called by the search, none can block it, and each can be disabled by a flag or simply left unread.
 
-This bears out the property claimed in <a href="06_architecture.livemd">Chapter 6</a> rather than establishing a new one: where closure is published rather than requested, an additional consumer costs close to nothing. What remains open is whether these particular consumers repay their cost, which <a href="08_evaluation.livemd">Chapter 8</a> settles by switching $\mathcal{SA}$, $\mathcal{MA}$ and $\mathcal{CA}$ independently and measuring the contribution of each.
+This bears out the property claimed in <a href="06_architecture.livemd">Chapter 6</a> rather than establishing a new one: where closure is published rather than requested, an additional consumer costs close to nothing. What remains open is whether these particular consumers reduce search cost enough to justify their overhead, which <a href="08_evaluation.livemd">Chapter 8</a> settles by switching $\mathcal{SA}$, $\mathcal{MA}$ and $\mathcal{CA}$ independently and measuring the contribution of each.
 
-## Footnotes
+## Chapter References
 
-[TODO: cite $\Omega$-Ants (Benzmüller & Sorge) and its higher-order successor (Wisniewski & Benzmüller); Nitpick (Blanchette & Nipkow) as the model-finding backend; expansion-tree and proof-object reconstruction as background for the trace-to-derivation construction.]
+* __[BN10]__ Jasmin Christian Blanchette and Tobias Nipkow. Nitpick: A counterexample generator for higher-order logic based on a relational model finder. In _Interactive Theorem Proving (ITP 2010)_, LNCS 6172, pages 131–146. Springer, 2010.
+* __[BS98]__ Christoph Benzmüller and Volker Sorge. A blackboard architecture for guiding interactive proofs. In _Artificial Intelligence: Methodology, Systems, and Applications (AIMSA 1998)_, LNCS 1480, pages 102–114. Springer, 1998.
+* __[BSW17]__ Christoph Benzmüller, Alexander Steen, and Max Wisniewski. Leo-III version 1.1 (system description). In _LPAR-21 Workshops (IWIL)_, Kalpa Publications in Computing 1, pages 11–26, 2017.
+* __[Mil87]__ Dale A. Miller. A compact representation of proofs. _Studia Logica_, 46(4):347–370, 1987.
+* __[SB21]__ Alexander Steen and Christoph Benzmüller. Extensional higher-order paramodulation in Leo-III. _Journal of Automated Reasoning_, 65(6):775–807, 2021.
+* __[Sor01]__ Volker Sorge. _$\Omega$-ANTS: A Blackboard Architecture for the Integration of Reasoning Techniques into Proof Planning_. PhD thesis, Universität des Saarlandes, Saarbrücken, 2001.
+* __[SWB16]__ Alexander Steen, Max Wisniewski, and Christoph Benzmüller. Agent-based HOL reasoning. In _Mathematical Software (ICMS 2016)_, LNCS 9725, pages 75–81. Springer, 2016.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="06_architecture.livemd">Chapter 6: A Concurrent Actor-Based Architecture</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a>

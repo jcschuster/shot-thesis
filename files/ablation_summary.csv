@@ -1,0 +1,17 @@
+configuration,parameter,theorems,delta_theorems,gained,lost,countermodels_agreeing,countermodels_contradicting,theorems_contradicting,solved_total,uniquely_solved,prover_error
+eager_unfold_defs,unfold_defs: :eager,730,48,72,24,61,2,0,791,44,4
+no_beta_variant,beta_variant: false,703,21,41,20,62,1,0,765,16,4
+prim_batch_16,prim_subst_batch_size: 16,685,3,21,18,61,1,0,746,2,6
+prim_batch_4,prim_subst_batch_size: 4,683,1,24,23,61,2,0,744,0,4
+baseline,(none),682,0,0,0,61,1,0,743,3,5
+no_prim_subst,primitive_substitution: false,681,-1,23,24,61,1,0,742,2,3
+no_suggestions,suggestions_enabled: false,681,-1,34,35,61,2,0,742,11,2
+serial,worker_pool_size: 1,680,-2,36,38,61,2,0,741,10,5
+no_instance_based_gamma,instance_based_gamma: false,679,-3,16,19,61,2,0,740,1,4
+no_atom_decomposition,atom_decomposition: false,670,-12,26,38,61,3,0,731,3,0
+no_finite_o_quantification,finite_o_quantification: false,662,-20,17,37,60,1,0,722,0,3
+gamma_limit_3,initial_gamma_limit: 3,661,-21,17,38,61,1,0,722,1,4
+gamma_limit_5,initial_gamma_limit: 5,657,-25,18,43,61,1,0,718,3,7
+no_demodulation,demodulation: false,641,-41,20,61,61,0,0,702,6,0
+no_iterative_deepening,iterative_deepening: false,595,-87,15,102,54,2,0,649,0,4
+no_contradiction_agent,contradiction_agent: false,318,-364,5,369,61,0,0,379,0,2

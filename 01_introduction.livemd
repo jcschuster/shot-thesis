@@ -2,22 +2,213 @@
 
 # Chapter 1: Introduction
 
-## Motivation
+## Higher-Order Proof Search
 
-[TODO]
+Classical higher-order logic, in the form of Church's simple theory of types <a href="#chapter-references">[Chu40]</a> under Henkin's general model semantics <a href="#chapter-references">[Hen50, And02]</a>, gains substantial expressiveness over first-order logic from a small extension of the syntax. Quantification over predicates and functions makes induction schemes, set-theoretic constructions, program semantics and the shallow embeddings of non-classical logics statable as single formulae rather than as first-order axiom schemes. The additional difficulty this creates for proof search has three independent sources.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The first is unification. Deciding whether two simply typed terms have a common instance is undecidable already at second order <a href="#chapter-references">[Gol81]</a>, and Huet's pre-unification procedure <a href="#chapter-references">[Hue75]</a> replaces the decision with an enumeration that may be infinite and infinitely branching. Every calculus for higher-order logic therefore invokes an unbounded subprocedure from its most frequent operation, and every implementation has to bound that subprocedure somewhere and recover completeness by deepening. Decidable fragments exist (patterns <a href="#chapter-references">[Mil91]</a> most notably) and are worth detecting, but they do not cover the problems that motivate the logic.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The second is quantifier instantiation at predicate types. A witness for a variable of type $\bar{\tau}_n {\to} o$ is a formula, and no finite set of instances suffices in general. Andrews' primitive substitution <a href="#chapter-references">[And89]</a> enumerates approximations to such witnesses by their outermost logical symbol, which is a large branching factor added on top of an already unbounded one.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The third is extensionality. Henkin completeness demands rules for Boolean and functional extensionality, and what a calculus may assume about them is itself stratified into a hierarchy of model classes <a href="#chapter-references">[BBK04]</a>. Formulae occur as arguments, equality at function types is not decided by structure, and the ordinary first-order division of a problem into terms and formulae stops holding.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The systems that address these difficulties are classified by their calculus. TPS searches for expansion proofs by mating search <a href="#chapter-references">[And81, Mil87, ABB00]</a>. LEO-II and Leo-III use extensional resolution and paramodulation <a href="#chapter-references">[SB21]</a>. Satallax and its reimplementation Lash use a ground tableau calculus with a SAT solver as the propositional decision procedure <a href="#chapter-references">[Bro12, BK22]</a>. Zipperposition and the higher-order modes of Vampire and E use superposition extended to $\lambda$-terms <a href="#chapter-references">[BBT+21, VBB+21]</a>. The competition record favours the last of these. In the THF division of CASC-J13, held at IJCAR 2026, the entrants were Vampire, Zipperposition, E, Leo-III and LEO-II; Vampire solved $354$ of $400$ problems and Zipperposition $347$, and no tableau-based system entered <a href="#chapter-references">[Sut26]</a>.
+
+## Analytic Tableaux in Higher-Order Proving
+
+A thesis that builds a higher-order tableau prover has to address that record, so the case against the method is stated first and without qualification. Satallax led higher-order proving through the 2010s and was then overtaken by superposition, by a wide margin and on the same benchmark set <a href="#chapter-references">[VBB+21]</a>. The reasons are structural rather than incidental. A saturation-based prover maintains a global clause set and a redundancy criterion, so every derived clause may simplify and subsume every other one; a tableau maintains a tree of branches, for which no comparable notion of one branch rendering another redundant is available. Free-variable tableaux are destructive, in that a closing substitution rewrites the whole tableau, so the standard proof procedure backtracks over instantiations and repeats work <a href="#chapter-references">[Fit96, Hah01]</a>. Equational reasoning, which superposition was designed around, has to be retrofitted. None of this is disputed here.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Four properties nevertheless argue for the method at higher order. The first of them is conceded by the superposition literature itself.
+
+<!-- livebook:{"break_markdown":true} -->
+
+_The input structure is preserved._ Clausification is a lossy translation, and at higher order it is lossy in ways that first-order experience does not predict. Formulae occur inside terms, Boolean-typed arguments have to be lifted out, and an axiomatic encoding of the Boolean type degrades saturation performance measurably; the response has been to interleave clausification with the derivation instead of running it as a preprocessing step <a href="#chapter-references">[NBTV21]</a>. Vukmirović et al. put the comparison plainly: "One of the strengths of tableau provers is that they do not clausify the input problem", and "delaying the clausification through the use of calculus rules that act on formulas achieves the same effect in superposition" <a href="#chapter-references">[VBB+21]</a>. A tableau calculus obtains that property by construction. Its rules act in place on the connective at the root of a formula, so a subformula to which no rule has been applied is unchanged from the input. For a prover whose secondary aim is presentation, this property is relevant twice over.
+
+<!-- livebook:{"break_markdown":true} -->
+
+_The proof object is legible._ A closed tableau is a tree whose nodes carry formulae in the vocabulary of the problem, and whose closure is witnessed by a pair of complementary literals and one substitution. It can be read without knowledge of the calculus, displayed as a tree, and verified by hand for small problems. Expansion proofs and matings offer a comparable representation <a href="#chapter-references">[Mil87]</a>. A refutation obtained by superposition after clausification, skolemisation, Boolean hoisting and simplification relates far less directly to the input formulae.
+
+<!-- livebook:{"break_markdown":true} -->
+
+_Rules compose additively._ Higher-order tableau calculi have been extended by the addition of rules. Kohlhase's $\mathcal{HTE}$ added extensionality rules to a Smullyan-style base <a href="#chapter-references">[Koh95, Smu68]</a>; Konrad's HOT reworked that calculus for implementation <a href="#chapter-references">[Kon98]</a>; Backes and Brown added a choice operator, with completeness relative to Henkin models preserved <a href="#chapter-references">[BB11]</a>. Each addition is a case in a rule dispatch and a case in the corresponding soundness argument. The same is true of the additions made here: primitive substitution, ordered demodulation and the definition-unfolding and BDD preprocessing of <a href="03_tableaux.livemd">Chapter 3</a> are separate rules with separate costs, each independently switchable, so that the ablation study of <a href="08_evaluation.livemd">Chapter 8</a> can turn one off without disturbing the rest.
+
+<!-- livebook:{"break_markdown":true} -->
+
+_Failure is informative._ A saturated branch that does not close is a candidate description of a model, which makes the method bidirectional: a failed proof attempt yields the material for a countermodel search. Satallax exploits this <a href="#chapter-references">[Bro12]</a>, and external model finders accept the same material <a href="#chapter-references">[BN10]</a>. The model agent of <a href="07_extensions.livemd">Chapter 7</a> is based on it, and the third verdict this prover can return, that a branch is saturated but not decidably open, follows from treating the countermodel reading as a soundness obligation.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Against those four properties is one that is usually listed as a defect and is treated here as the central design constraint. The free variables introduced by $\gamma$-expansion are _rigid_: a variable denotes the same term on every branch it occurs on, and a closed tableau requires a single substitution closing all open branches simultaneously. Branch expansion is local, closure is global. In the standard proof procedure this global dependency is what forces backtracking, and it is why parallelising a tableau naively is unsound: two branches that each close under incompatible bindings have not closed the tableau.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The first-order literature already contains the reformulation that removes the backtracking. Giese's incremental closure keeps, for each branch, the set of substitutions that would close it, and searches for a common solution incrementally rather than committing to one instantiation and undoing it later <a href="#chapter-references">[Gie01]</a>. Read as an architecture rather than as a search strategy, this decomposes the tableau into many independent local computations and one shared constraint problem. The present work transfers that decomposition to higher order, where the local computations are more expensive, the constraints are pre-unifiers rather than unifiers <a href="#chapter-references">[Hue75]</a>, and the enumeration underlying each constraint is unbounded.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The claim made here is therefore not that tableaux outperform superposition on higher-order problems; the CASC record indicates otherwise and this thesis presents no evidence to the contrary. However, the tableau method admits a decomposition into independent local work and a single global constraint, which saturation-based calculi do not, since a clause set is shared by construction and mutual simplification makes every inference depend on every other <a href="#chapter-references">[Bon00]</a>. That decomposition has been exploited concurrently at first order and has not been exploited at higher order on a runtime designed for such computations. Whether doing so is profitable is an empirical question, addressed in <a href="08_evaluation.livemd">Chapter 8</a>.
+
+## Rigidity, Locality and Parallel Search
+
+Parallel deduction has an established classification. Bonacina classifies strategies by granularity, by whether one process directs the others or the processes are peers, and by whether the parallelism subdivides a single search or runs several searches at once <a href="#chapter-references">[Bon00]</a>. In those terms the architecture of <a href="06_architecture.livemd">Chapter 6</a> is coarse-grained, peer-based, and a distributed search: branches are the unit of parallel work, no process directs another, and the search performed by a population of workers differs from the sequential search it derives from rather than reordering it.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Two lines of prior work are directly relevant. The first uses blackboard architectures and begins with $\Omega$-Ants, where concurrent agents compute possible arguments for inference rules and post them to a blackboard from which a proof planner selects <a href="#chapter-references">[BS98, Sor01]</a>, and continues into higher-order proving with Konrad's HOT, which runs an extensional higher-order tableau calculus on a concurrent blackboard architecture <a href="#chapter-references">[Kon98]</a>, and with the agent framework of Leo-III <a href="#chapter-references">[SWB16]</a>, whose scheduler collects the read and write sets of the tasks its agents propose and selects a maximal non-conflicting set of them by an approximation algorithm for combinatorial auctions. That framework has two modes, and the fine-grained one, in which each inference rule is an agent, was reported as "not competitive and still experimental"; the configuration Leo-III competes in runs a sequential loop inside a single agent, with parallelism confined to unification, redundancy checks and calls to external provers <a href="#chapter-references">[BSW17, SB21]</a>. The second parallelises the tableau itself and is represented by Goéland, which spawns a lightweight process per branch, communicates closing substitutions over channels, and reconciles them centrally <a href="#chapter-references">[CRD+22]</a>. Goéland is first-order; HOT is higher-order, but its concurrency serves the blackboard rather than branch expansion. The process-per-branch mapping Goéland uses is the one design this thesis considered and did not adopt, for the reasons given in the next section. Leo-III's experience bears on the same point from the other side: when every inference has to be arbitrated by a scheduler, the arbitration is the cost. The architecture of <a href="06_architecture.livemd">Chapter 6</a> arbitrates only closure, and leaves expansion unarbitrated.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The design developed here differs from both in the direction of control. No scheduler is advised by agents. Workers expand branches and publish closure evidence; a single contradiction agent consumes that evidence and solves the global constraint; further agents subscribe to the same stream and may publish hints that a worker may ignore. An agent is added by subscribing and removed by not starting it, so each agent can be disabled without modifying the components that remain.
+
+## The BEAM as Platform for Concurrency
+
+The choice of Elixir on the BEAM follows from the structure of the computation described above. The unit of parallel work is the branch, and the number of branches grows at every $\beta$-expansion, which suggests mapping each branch to its own process. That is not the design used here. Branches are created faster than they are closed, each retains its full formula set for as long as it lives, and each would publish closure evidence to a single contradiction agent whose mailbox and cartesian product both grow with the number of live branches. Memory consumption would then track the size of the tableau rather than the size of the pool, and the schedulers would be occupied by processes that are for the most part not running.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Branches are therefore values rather than processes. A branch is a data structure held in a public ETS table, and a fixed pool of long-lived worker processes takes branches from that table, applies a bounded number of rules to each, and returns them. The pool defaults to one worker per online scheduler, so the degree of parallelism follows the hardware while the number of branches in flight follows the problem. The runtime is used here for a work-stealing pool over shared structures that many processes read and write at once, rather than for a process per unit of work.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Four properties of the runtime are relevant <a href="#chapter-references">[Arm03]</a>. Scheduling is preemptive and reduction-counted, so a worker that has entered a long pre-unification enumeration cannot starve the workers that would have closed the tableau sooner; the bound on that enumeration is still needed for completeness, but it is no longer needed to keep the system responsive. Each process has its own heap, so garbage collection is per-process and collecting one worker does not suspend the others. Schedulers are per core, and the same program runs on one core and on many without a change in the code, so `worker_pool_size` sweeps a single implementation rather than comparing two in <a href="08_evaluation.livemd">Chapter 8</a>. ETS provides tables with per-slot read and write concurrency, which is what allows the branch queue, the traces, the provenance records and the published hints to be shared between workers without a coordinating process on the frequently executed path.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Message passing between isolated processes also enforces the calculus's central discipline through the primitives of the language rather than by convention. A worker cannot mutate another worker's state, since it holds no reference to it; the only shared mutable objects in a session are the ETS tables owned by a single process, and all global search state resides in them. Wherever the code accesses a shared table instead of sending a message, the local/global partition of <a href="06_architecture.livemd">Chapter 6</a> is apparent at the call site.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Supervision has a further consequence. A pre-unification stream that exhausts memory, or a rule application that raises on a malformed term, terminates one worker rather than the session; its supervisor restarts it and the remaining workers continue. The branch that worker held is not returned to the queue, since checkout removes it from the shared table, so the cost of a worker crash is one abandoned branch. Failure isolation therefore bounds the damage a single malformed term can do, and the defensive checks a single-process prover performs inline are replaced by process termination.
+
+> [TODO: state what an abandoned branch does to the verdict. It is never closed, so $\mathcal{CA}$'s active set should stay non-empty and the session should stall into `:unknown` rather than report a spurious closure; confirm this against `Manager` and `ContradictionAgent` before the sentence above stands unqualified.]
+
+<!-- livebook:{"break_markdown":true} -->
+
+The disadvantages are stated with the same directness. The BEAM is not a fast substrate for the inner loops of a theorem prover. Term traversal, unification and order comparisons are allocation-intensive symbolic operations, and an OCaml or C implementation of the same algorithms performs more of them per second than an Elixir one; Satallax, Lash and Zipperposition are single-threaded systems with substantially better constant factors than are attainable here <a href="#chapter-references">[Bro12, BK22, BBT+21]</a>. Hash-consing of terms and ETS-resident caches reduce that difference, and the speedup from parallelism must compensate for the remainder. No part of this thesis assumes that it does.
+
+> [TODO: once <a href="08_evaluation.livemd">Chapter 8</a> exists, replace the preceding sentence with the measured single-worker penalty and the measured scaling curve, and state whether the parallel speedup compensates for the constant-factor loss.]
+
+<!-- livebook:{"break_markdown":true} -->
+
+Two secondary considerations support the choice without being decisive for it. Elixir retains the developers who adopt it, ranking third among the most admired languages in the 2025 Stack Overflow developer survey behind Rust and Gleam <a href="#chapter-references">[SO25]</a>, which is relevant for a research prototype intended to be read and extended by others. Its notebook environment, Livebook, is the medium of this thesis and is the subject of the next section.
+
+## Executable Presentation
+
+Teaching and presentation are secondary aims of the Shot system, and they influenced the calculus only where no other property had to be given up. The prover's formatters print types and terms in the conventional annotated style rather than in the uncurried notation of <a href="02_preliminaries.livemd">Chapter 2</a>, derivations are rendered as trees, and every rule carries a name a reader can look up. Since the tableau method was already the most readable of the candidate calculi, no substantial conflict between the two aims arose.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The thesis itself serves as the proof of concept for that aim. It is written as a set of Livebook notebooks <a href="#chapter-references">[Liv25]</a> following the principles of literate programming <a href="#chapter-references">[Knu84]</a>: the chapters are the source of truth, the LaTeX build reads them, and the executable cells run the prover being described. A rule classification, an enumeration of pre-unifiers, an orientation decision and a rendered proof object are computed when the chapter is opened rather than asserted in prose. Three registers are kept typographically distinct throughout, as set out in <a href="02_preliminaries.livemd">Chapter 2</a>, so that a claim about the mathematics and a claim about the implementation are never confused for one another.
 
 ## Contributions
 
-[TODO]
+The thesis makes the following contributions.
+
+* A higher-order free-variable tableau calculus over Church's simple type theory with primitive equality, extensional rules, primitive substitution, and equational reasoning by ordered demodulation, together with the preprocessing that precedes it (<a href="03_tableaux.livemd">Chapter 3</a>).
+* A binding-free formulation of every branch-level rule. No rule commits to a value for a free variable; each records a closure condition as evidence. The consequences are traced through the equality rules, which admit only rewrites with an empty matcher, and through the term order, which must be stable under a substitution that has not yet been computed (<a href="03_tableaux.livemd">Chapter 3</a>, <a href="05_term_order.livemd">Chapter 5</a>).
+* A treatment of global closure as a constraint satisfaction problem over the closure evidence of all open branches, solved once by a dedicated process, giving a higher-order counterpart to incremental closure <a href="#chapter-references">[Gie01]</a> and removing backtracking over instantiations from the search (<a href="06_architecture.livemd">Chapter 6</a>).
+* A concurrent actor architecture realising that partition on the BEAM: a supervision tree per proof session, a fixed pool of worker processes stealing branches from a shared queue, shared state confined to tables owned by a single process, and closure evidence distributed by broadcast (<a href="06_architecture.livemd">Chapter 6</a>).
+* Three peer agents built as consumers of that broadcast, for cross-branch instantiation hints, for satisfiability probing of saturated branches, and for global closure, each independently switchable; and reconstruction of an ordinary tableau proof from the derivation traces recorded by the concurrent search (<a href="07_extensions.livemd">Chapter 7</a>).
+* An orientation order for higher-order terms in $\eta$-long $\beta$-normal form, with the stability and typing properties the deferred-substitution discipline requires (<a href="05_term_order.livemd">Chapter 5</a>).
+* A set of concurrent data structures with explicit memory sharing, on which the pool design depends. Terms are hash-consed into a global pool, constructed once and thereafter referred to by identifier, so that a branch is cheap to write to a shared table and cheap for another worker to take from it; intermediate terms are built in process-local scratchpads and committed to the global pool only when a result survives, so that failed enumerations are discarded without adding to it. The session's search state is held in public ETS tables with read and write concurrency, addressed by branch prefix so that closure, tombstoning and hint lookup are single operations (<a href="02_preliminaries.livemd">Chapter 2</a>, <a href="06_architecture.livemd">Chapter 6</a>).
+* The Shot ecosystem: four independently usable Hex packages, `shot_ds` for terms, types and the semantics of Church's simple type theory, `shot_un` for pre-unification, `shot_to` for the term order, and `shot_tx` for the calculus, the architecture and proof objects. Each carries its own documentation and test suite, and the first three are usable without the prover.
+* An open-source implementation presented as executable notebooks in which the described behaviour is run rather than paraphrased.
+* [TODO: an ablation study over the agents, the calculus rules and the search control, together with parameter sweeps and a scaling measurement over the worker pool (<a href="08_evaluation.livemd">Chapter 8</a>). State the headline results here once they exist.]
+* [TODO: a qualitative evaluation on a structured set of higher-order problems, characterising the problem classes on which the concurrent search is effective and those on which it is not.]
 
 ## Scope and Non-Goals
 
-[TODO]
+The system is a research prototype and is not tuned for competition. No claim is made that it is faster than, or solves more problems than, any of the systems named above, and the evaluation is designed to measure the contribution of its own components rather than to place it in a ranking.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Soundness of the calculus is argued rule by rule. Completeness is not established for the calculus as a whole: the bounded pre-unification of <a href="04_unification.livemd">Chapter 4</a> is recovered by iterative deepening, but the interaction of demodulation, the extensionality rules and the search bounds is not given a Henkin completeness proof here, and the semantic layering of <a href="#chapter-references">[BBK04]</a> is used to state what is assumed rather than to prove what is achieved.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The choice operator is not part of the calculus, so the fragment covered is narrower than that of <a href="#chapter-references">[BB11]</a>. Concurrency is confined to a single BEAM node; the runtime's distribution facilities are not used and multi-node scaling is left to future work. Integration with an interactive prover as a hammer-style backend is out of scope.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The logic reasoned about is monomorphic. Input is read in the TPTP typed higher-order dialects <a href="#chapter-references">[Sut17, SB10]</a>, and rank-1 polymorphic TH1 problems <a href="#chapter-references">[KSR16]</a> are monomorphised during parsing, so a polymorphic symbol is presented to the calculus as a family of monomorphic ones. Problems whose proofs require an instance not produced by the monomorphisation are therefore not provable, and no reasoning about type variables takes place inside the calculus.
 
 ## Outline
 
-[TODO: one paragraph per chapter, linking <a href="02_preliminaries.livemd">Chapter 2</a> through <a href="09_conclusion.livemd">Chapter 9</a>.]
+Notation and semantics are fixed in <a href="02_preliminaries.livemd">Chapter 2</a>, which develops Church's simple theory of types with an uncurried, $\eta$-long $\beta$-normal presentation and Henkin general models, and defines the type-level vocabulary the later chapters depend on. The notational conventions follow those of Niederhauser and Middeldorp <a href="#chapter-references">[NM26]</a>.
 
-## Footnotes
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO: cite]
+The calculus is given in <a href="03_tableaux.livemd">Chapter 3</a>: the tableau objects and their global and local states, the propositional and quantifier rules, primitive substitution, the extensionality rules for Boolean and functional equality, ordered demodulation, closure and discharge, literal processing, BDD-based preprocessing, the search bounds and the rule priorities that order the whole.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Two term-level chapters follow. Huet-style pre-unification, its three cases and the decidable fragments worth detecting are covered in <a href="04_unification.livemd">Chapter 4</a>. The orientation order used to gate rewriting, its parameters and the properties demanded of it by the deferred-substitution discipline are covered in <a href="05_term_order.livemd">Chapter 5</a>.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The architecture is the subject of <a href="06_architecture.livemd">Chapter 6</a>: the rigid variable problem and the local/global partition it forces, the supervision tree, the separation of pure branch logic from stateful shell, the evidence stream, global closure as constraint satisfaction, the message flow and iterative deepening. Its extensions, the two optional peer agents and proof reconstruction, are the subject of <a href="07_extensions.livemd">Chapter 7</a>.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the benchmark method, the baseline configuration, ablations of the agents, of the calculus rules and of the search control, parameter sweeps, scaling with the worker pool, and threats to validity. Worked examples are collected in <a href="91_appendix_a.livemd">Appendix A</a>, and <a href="09_conclusion.livemd">Chapter 9</a> summarises, states the limitations that survive the evaluation, and sets out future work.
+
+> [TODO: once <a href="08_evaluation.livemd">Chapter 8</a> and the qualitative study are complete, add a short paragraph here stating the principal findings, so that a reader of this chapter alone knows what was measured and with what result.]
+
+## Chapter References
+
+* __[ABB00]__ Peter B. Andrews, Matthew Bishop, and Chad E. Brown. System description: TPS: A theorem proving system for type theory. In _Automated Deduction (CADE-17)_, LNCS 1831, pages 164–169. Springer, 2000.
+* __[And02]__ Peter B. Andrews. _An Introduction to Mathematical Logic and Type Theory: To Truth Through Proof_, second edition. Applied Logic Series 27. Kluwer Academic Publishers, 2002.
+* __[And81]__ Peter B. Andrews. Theorem proving via general matings. _Journal of the ACM_, 28(2):193–214, 1981.
+* __[And89]__ Peter B. Andrews. On connections and higher-order logic. _Journal of Automated Reasoning_, 5(3):257–291, 1989.
+* __[Arm03]__ Joe Armstrong. _Making Reliable Distributed Systems in the Presence of Software Errors_. PhD thesis, Royal Institute of Technology (KTH), Stockholm, 2003.
+* __[BB11]__ Julian Backes and Chad E. Brown. Analytic tableaux for higher-order logic with choice. _Journal of Automated Reasoning_, 47(4):451–479, 2011.
+* __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
+* __[BBT+21]__ Alexander Bentkamp, Jasmin Blanchette, Sophie Tourret, Petar Vukmirović, and Uwe Waldmann. Superposition with lambdas. _Journal of Automated Reasoning_, 65(7):893–940, 2021.
+* __[BK22]__ Chad E. Brown and Cezary Kaliszyk. Lash 1.0 (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 350–358. Springer, 2022.
+* __[BN10]__ Jasmin Christian Blanchette and Tobias Nipkow. Nitpick: A counterexample generator for higher-order logic based on a relational model finder. In _Interactive Theorem Proving (ITP 2010)_, LNCS 6172, pages 131–146. Springer, 2010.
+* __[Bon00]__ Maria Paola Bonacina. A taxonomy of parallel strategies for deduction. _Annals of Mathematics and Artificial Intelligence_, 29(1):223–257, 2000.
+* __[Bro12]__ Chad E. Brown. Satallax: An automatic higher-order prover. In _Automated Reasoning (IJCAR 2012)_, LNCS 7364, pages 111–117. Springer, 2012.
+* __[BS98]__ Christoph Benzmüller and Volker Sorge. A blackboard architecture for guiding interactive proofs. In _Artificial Intelligence: Methodology, Systems, and Applications (AIMSA 1998)_, LNCS 1480, pages 102–114. Springer, 1998.
+* __[BSW17]__ Christoph Benzmüller, Alexander Steen, and Max Wisniewski. Leo-III version 1.1 (system description). In _LPAR-21 Workshops (IWIL)_, Kalpa Publications in Computing 1, pages 11–26, 2017.
+* __[Chu40]__ Alonzo Church. A formulation of the simple theory of types. _The Journal of Symbolic Logic_, 5(2):56–68, 1940.
+* __[CRD+22]__ Julie Cailler, Johann Rosain, David Delahaye, Simon Robillard, and Hinde Lilia Bouziane. Goéland: A concurrent tableau-based theorem prover (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 359–368. Springer, 2022.
+* __[Fit96]__ Melvin Fitting. _First-Order Logic and Automated Theorem Proving_, second edition. Graduate Texts in Computer Science. Springer, 1996.
+* __[Gie01]__ Martin Giese. Incremental closure of free variable tableaux. In _Automated Reasoning (IJCAR 2001)_, LNCS 2083, pages 545–560. Springer, 2001.
+* __[Gol81]__ Warren D. Goldfarb. The undecidability of the second-order unification problem. _Theoretical Computer Science_, 13(2):225–230, 1981.
+* __[Hah01]__ Reiner Hähnle. Tableaux and related methods. In _Handbook of Automated Reasoning_, volume 1, chapter 3, pages 100–178. Elsevier and MIT Press, 2001.
+* __[Hen50]__ Leon Henkin. Completeness in the theory of types. _The Journal of Symbolic Logic_, 15(2):81–91, 1950.
+* __[Hue75]__ Gérard P. Huet. A unification algorithm for typed $\lambda$-calculus. _Theoretical Computer Science_, 1(1):27–57, 1975.
+* __[Knu84]__ Donald E. Knuth. Literate programming. _The Computer Journal_, 27(2):97–111, 1984.
+* __[Koh95]__ Michael Kohlhase. Higher-order tableaux. In _Theorem Proving with Analytic Tableaux and Related Methods (TABLEAUX 1995)_, LNCS 918, pages 294–309. Springer, 1995.
+* __[Kon98]__ Karsten Konrad. HOT: A concurrent automated theorem prover based on higher-order tableaux. In _Theorem Proving in Higher Order Logics (TPHOLs 1998)_, LNCS 1479, pages 245–261. Springer, 1998.
+* __[KSR16]__ Cezary Kaliszyk, Geoff Sutcliffe, and Florian Rabe. TH1: The TPTP typed higher-order form with rank-1 polymorphism. In _Proceedings of the 5th Workshop on Practical Aspects of Automated Reasoning (PAAR 2016)_, CEUR Workshop Proceedings 1635, pages 41–55, 2016.
+* __[Liv25]__ The Livebook Team. Livebook: Automate code and data workflows with interactive Elixir notebooks. https://livebook.dev, 2025.
+* __[Mil87]__ Dale A. Miller. A compact representation of proofs. _Studia Logica_, 46(4):347–370, 1987.
+* __[Mil91]__ Dale Miller. A logic programming language with lambda-abstraction, function variables, and simple unification. _Journal of Logic and Computation_, 1(4):497–536, 1991.
+* __[NBTV21]__ Visa Nummelin, Alexander Bentkamp, Sophie Tourret, and Petar Vukmirović. Superposition with first-class Booleans and inprocessing clausification. In _Automated Deduction (CADE-28)_, LNCS 12699, pages 378–395. Springer, 2021.
+* __[NM26]__ Johannes Niederhauser and Aart Middeldorp. Unification of deterministic higher-order patterns. In _Automated Reasoning (IJCAR 2026)_, Lecture Notes in Computer Science. Springer, 2026. To appear; preprint arXiv:2601.14211.
+* __[SB10]__ Geoff Sutcliffe and Christoph Benzmüller. Automated reasoning in higher-order logic using the TPTP THF infrastructure. _Journal of Formalized Reasoning_, 3(1):1–27, 2010.
+* __[SB21]__ Alexander Steen and Christoph Benzmüller. Extensional higher-order paramodulation in Leo-III. _Journal of Automated Reasoning_, 65(6):775–807, 2021.
+* __[Smu68]__ Raymond M. Smullyan. _First-Order Logic_. Ergebnisse der Mathematik und ihrer Grenzgebiete 43. Springer, 1968.
+* __[SO25]__ Stack Overflow. 2025 Developer Survey: Technology. https://survey.stackoverflow.co/2025/technology, 2025.
+* __[Sor01]__ Volker Sorge. _$\Omega$-ANTS: A Blackboard Architecture for the Integration of Reasoning Techniques into Proof Planning_. PhD thesis, Universität des Saarlandes, Saarbrücken, 2001.
+* __[Sut17]__ Geoff Sutcliffe. The TPTP problem library and associated infrastructure: From CNF to TH0, TPTP v6.4.0. _Journal of Automated Reasoning_, 59(4):483–502, 2017.
+* __[Sut26]__ Geoff Sutcliffe. The 13th IJCAR automated theorem proving system competition: CASC-J13. https://tptp.org/CASC/J13, 2026. [TODO: replace with the journal report once it appears.]
+* __[SWB16]__ Alexander Steen, Max Wisniewski, and Christoph Benzmüller. Agent-based HOL reasoning. In _Mathematical Software (ICMS 2016)_, LNCS 9725, pages 75–81. Springer, 2016.
+* __[VBB+21]__ Petar Vukmirović, Alexander Bentkamp, Jasmin Blanchette, Simon Cruanes, Visa Nummelin, and Sophie Tourret. Making higher-order superposition work. In _Automated Deduction (CADE-28)_, LNCS 12699, pages 415–432. Springer, 2021.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="00_index.livemd">Preface</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a>

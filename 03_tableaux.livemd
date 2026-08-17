@@ -4,14 +4,14 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, "~> 0.0.3"},
+  {:shot_tx, github: "jcschuster/ShotTx"},
   {:kino, "~> 0.19.0"}
 ])
 ```
 
 ## Global and Local Tableau States
 
-__Definition (Free Variable Tableau).__ A _free variable tableau_ for a finite formula set $\Phi$ (from here on just _tableau_) is a finitely branching tree whose nodes are labelled with formulae, built from a root path labelled by $\Phi$ by finitely many applications of the expansion rules of this chapter. A _branch_ $\mathfrak{B}$ is a maximal path from the root; we identify $\mathfrak{B}$ with the set of formulae labelling it, read as the conjunction $\bigwedge \mathfrak{B}$. The tableau denotes $\bigvee_{\mathfrak{B}} \bigwedge \mathfrak{B}$ over its branches. Free variables introduced by $\gamma$-rules are _rigid_: they range over the whole tableau, so a substitution applies to every branch simultaneously.
+__Definition (Free Variable Tableau).__ A _free variable tableau_ <a href="#chapter-references">[Fit96, Hah01]</a> for a finite formula set $\Phi$ (from here on just _tableau_) is a finitely branching tree whose nodes are labelled with formulae, built from a root path labelled by $\Phi$ by finitely many applications of the expansion rules of this chapter. A _branch_ $\mathfrak{B}$ is a maximal path from the root; we identify $\mathfrak{B}$ with the set of formulae labelling it, read as the conjunction $\bigwedge \mathfrak{B}$. The tableau denotes $\bigvee_{\mathfrak{B}} \bigwedge \mathfrak{B}$ over its branches. Free variables introduced by $\gamma$-rules are _rigid_: they range over the whole tableau, so a substitution applies to every branch simultaneously.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -23,10 +23,6 @@ __Definition (Position, Replacement).__ Several rules below act at a distinguish
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Complement).__ The _complement_ ${\sim}\varphi$ of a formula $\varphi$ is $\chi$ if $\varphi = \neg\chi$, and $\neg\varphi$ otherwise.
-
-<!-- livebook:{"break_markdown":true} -->
-
 __Definition (Clash, Disagreement).__ Let $\varphi$ and $\psi$ be literals on a branch. They _clash_ if ${\sim}\varphi$ and $\psi$ are syntactically equal. They _disagree_ if at least one of the unification problems $\{{\sim}\varphi \overset{?}{=} \psi\}$ and $\{\varphi \overset{?}{=} {\sim}\psi\}$ admits a pre-unifier.
 
 <!-- livebook:{"break_markdown":true} -->
@@ -35,7 +31,7 @@ __Definition (Clash, Disagreement).__ Let $\varphi$ and $\psi$ be literals on a 
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Closure).__ A branch $B$ is _closed under $\theta$_, for a free-variable substitution $\theta$, if some pair $\varphi, \psi \in \mathrm{Lit}(\mathfrak{B})$ satisfies $({\sim}\varphi)\theta = \psi\theta$. It is _closed unconditionally_ (_ground closure_) if this holds for $\theta = \varepsilon$, and _conditionally closed_ otherwise. A tableau $\mathfrak{T}$ is _closed_ if there is a single $\theta$ such that every branch of $\mathfrak{T}$ is closed under $\theta$; the rigidity of free variables is exactly the demand that one $\theta$ serve all branches.
+__Definition (Closure).__ A branch $B$ is _closed under $\theta$_, for a free-variable substitution $\theta$, if some pair $\varphi, \psi \in \mathrm{Lit}(\mathfrak{B})$ satisfies $({\sim}\varphi)\theta = \psi\theta$. It is _closed unconditionally_ (_ground closure_) if this holds for $\theta = \varepsilon$, and _conditionally closed_ otherwise. A tableau $\mathfrak{T}$ is _closed_ if there is a single $\theta$ such that every branch of $\mathfrak{T}$ is closed under $\theta$; rigidity of free variables is the requirement that a single $\theta$ close all branches.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -47,7 +43,7 @@ __Proposition (Tableau-Proof).__ If a tableau for $\Phi$ is closed, then $\Phi$ 
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Proposition (Model).__ The literals of an open branch admit a Henkin model, so an open tableau for $\Phi$ witnesses satisfiability of $\Phi$.
+__Proposition (Tableau-Model).__ The literals of an open branch admit a Henkin model, so an open tableau for $\Phi$ witnesses satisfiability of $\Phi$.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -59,7 +55,7 @@ Ground closure terminates a branch immediately and locally. A disagreement, by c
 
 ## Propositional Rules
 
-Following [TODO: citation], we distinguish between $\alpha$-, $\beta$-, $\gamma$- and $\delta$-rules for expansion.
+Following Smullyan's uniform notation <a href="#chapter-references">[Smu68, Fit96]</a>, we distinguish between $\alpha$-, $\beta$-, $\gamma$- and $\delta$-rules for expansion.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -112,7 +108,7 @@ $$
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The modes differ in rule class, not only in shape. Same-polarity expansion makes positive $\equiv$ a $\beta$-rule; bidirectional-implication makes it an $\alpha$-rule and defers the split to the produced disjunctions. The prover's default is bidirectional implication. `Rules.classify_formula/3` carries its own default of same-polarity for direct calls, so a classification performed outside the prover will not agree with the prover unless the mode is passed explicitly.
+> The modes differ in rule class as well as in shape. Same-polarity expansion makes positive $\equiv$ a $\beta$-rule; bidirectional-implication makes it an $\alpha$-rule and defers the split to the produced disjunctions. The prover's default is bidirectional implication. `Rules.classify_formula/3` carries its own default of same-polarity for direct calls, so a classification performed outside the prover will not agree with the prover unless the mode is passed explicitly.
 
 ## Quantifier Rules
 
@@ -127,17 +123,17 @@ where $X$ is fresh for the branch.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Two refinements sit on top of this. Under _instance-based_ $\gamma$ (`instance_based_gamma`, on), the first application of a rule additionally emits instances $\Phi(t)$ for ground terms $t : \tau$ already registered on the branch, and generates unit-set prim-subst bindings for the branch's constants. The per-firing ground fan-out is capped by `instance_based_gamma_limit`, whose default `0` suppresses it: nested quantifiers multiply branch constants combinatorially, and the cheap first-$\gamma$ cost makes every IBG-derived rule fire ahead of $\beta$. Ground terms discovered later are picked up the next time the same rule fires under deepening. With $o$ as goal type, reaching `prim_subst_after` ($1$) instantiations schedules a primitive substitution rule (<a href="#primitive-substitution">§ Primitive Substitution</a>) at the same source, unless `primitive_substitution` is off.
+> Two refinements sit on top of this. Under _instance-based_ $\gamma$ (`instance_based_gamma`, on), the first application of a rule additionally emits instances $\Phi(t)$ for ground terms $t : \tau$ already registered on the branch, and generates unit-set prim-subst bindings for the branch's constants. The per-firing ground fan-out is capped by `instance_based_gamma_limit`, whose default `0` suppresses it: nested quantifiers multiply branch constants combinatorially, and the cheap first-$\gamma$ cost makes every IBG-derived rule fire ahead of $\beta$. Ground terms discovered later are picked up the next time the same rule fires under deepening. When the variable's type is an $o$-type, reaching `prim_subst_after` ($1$) instantiations schedules a primitive substitution rule (<a href="#primitive-substitution">§ Primitive Substitution</a>) at the same source, unless `primitive_substitution` is off.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Pure $o$-Type, Propositional Domain).__ The set $\mathcal{O} \subseteq \mathcal{T}$ of _pure $o$-types_ is the least set with $o \in \mathcal{O}$ and $\bar{\tau}_n {\to} o \in \mathcal{O}$ whenever every $\tau_i \in \mathcal{O}$. For $\tau \in \mathcal{O}$ the frame component $\mathcal{D}_\tau$ is finite, with
+__Definition (Propositional Domain).__ Let $\mathcal{O}$ be the pure $o$-types of <a href="02_preliminaries.livemd">Chapter 2</a>. For $\tau \in \mathcal{O}$ the frame component $\mathcal{D}_\tau$ is finite, and in a standard frame
 
 $$
 |\mathcal{D}_o| = 2 \qquad\qquad |\mathcal{D}_{\bar{\tau}_n \to o}| = 2^{\,\prod_{i=1}^{n} |\mathcal{D}_{\tau_i}|}
 $$
 
-and we write $\mathrm{gen}(\tau) = \{b_1, \dots, b_{|\mathcal{D}_\tau|}\}$ for a fixed enumeration of closed terms realising these elements.
+We write $\mathrm{gen}(\tau) = \{b_1, \dots, b_k\}$ for a fixed enumeration of closed terms realising the elements of the standard $\mathcal{D}_\tau$. A Henkin frame's $\mathcal{D}_\tau$ is a subset of the standard one, so $\mathrm{gen}(\tau)$ covers it in every model, which is what the rules below require of it.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -164,7 +160,7 @@ ShotTx.Generation.gen_o(~t| $o>$o>$o |)
 |> Kino.Markdown.new
 ```
 
-__Definition ($\delta$-Rules).__ _$\delta$-rules_ instantiate existentially quantified formulae with a parameter term depending on the free variables of the matrix (Skolemisation).
+__Definition ($\delta$-Rules).__ _$\delta$-rules_ instantiate existentially quantified formulae with a parameter term depending on the free variables of the matrix (Skolemisation), in the liberalised form that lets the parameter depend on those free variables alone <a href="#chapter-references">[HS94]</a>.
 
 $$
 \frac{\exists \tau.\, \Phi}{\Phi(p\{\mathrm{FV}(\Phi)\})}(\exists) \qquad\qquad
@@ -179,7 +175,11 @@ where, for $\mathrm{FV}(\Phi) = \bar{X}_n$ with $\bar{X}_n \in \mathcal{V}_{\bar
 
 ## Primitive Substitution
 
-__Definition (Primitive Substitution).__ Let $\Phi$ be the recipe of a $\gamma$-rule whose variable type has goal $o$. A _general binding_ for argument types $\bar{\alpha}$ is a term $\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\bar{n}), \dots, H_k(\bar{n}))$ where $\bar{H}_k$ are fresh free variables and $\mathcal{H}$ is drawn from a family of admissible heads. The _primitive substitution_ rule instantiates $\Phi$ with each general binding in turn:
+The rule below instantiates the matrix of a $\gamma$-rule with _general bindings_ over a fixed family of heads, in the sense of Andrews <a href="#chapter-references">[And89]</a>.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (Primitive Substitution).__ Let $\Phi$ be the matrix of a $\gamma$-rule whose variable type is an $o$-type in the sense of <a href="02_preliminaries.livemd">Chapter 2</a>, that is, a type of goal $o$ with arbitrary argument types. A _general binding_ for argument types $\bar{\alpha}$ is a term $\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\bar{n}), \dots, H_k(\bar{n}))$ where $\bar{H}_k$ are fresh free variables and $\mathcal{H}$ is drawn from a family of admissible heads. The _primitive substitution_ rule instantiates $\Phi$ with each general binding in turn:
 
 $$
 \frac{\forall \tau.\, \Phi}{\Phi(G_1) \mid \dots \mid \Phi(G_j)}(\mathrm{prim})
@@ -187,17 +187,17 @@ $$
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Three head families are generated. The _propositional_ family fixes a logical connective: $\top$, $\bot$, $\neg H$, and the four binary connectives over two holes; at depth $\geq 2$ it is extended with five composed forms such as $\neg(H_1 \land H_2)$ and $\neg H_1 \land H_2$. The _polymorphic_ family fixes $=\!\langle\tau\rangle$ over the branch's type universe, extended at depth $\geq 2$ with composed equality heads and with $\forall$/$\exists$ heads, which are ordered last so proof search reaches them late. The _unit-set_ family produces $\lambda \bar{\tau}_n.\, (H(\bar{n})) =\!\langle\tau\rangle\; c$ for each parameter $c$ on the branch. The $H$ holes are minted globally rather than in a scratchpad, because a unifier found later must be traceable back to the rule that introduced them.
+> Three head families are generated. The _propositional_ family fixes a logical connective: $\top$, $\bot$, $\neg H$, and the four binary connectives over two holes; at depth $\geq 2$ it is extended with five composed forms such as $\neg(H_1 \land H_2)$ and $\neg H_1 \land H_2$. The _polymorphic_ family fixes $=\!\langle\tau\rangle$ over the branch's type universe, extended at depth $\geq 2$ with composed equality heads and with $\forall$/$\exists$ heads, which are ordered last so proof search reaches them late. The _unit-set_ family produces $\lambda \bar{\tau}_n.\, (H(\bar{n})) =\!\langle\tau\rangle\; c$ for each parameter $c$ on the branch. The $H$ holes are created in the global term pool rather than in a scratchpad, because a unifier found later must be traceable to the rule that introduced them.
 
 ## Boolean Extensionality: Renaming and Instantiation
 
-The remaining higher-order principle is _Boolean extensionality_: in a Henkin model $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$, so two formulae denoting the same truth value are interchangeable in every context. A tableau built only from the rules above cannot use this. The rules decompose a formula's _logical skeleton_, but an atom $P(t)$ whose argument $t$ has type $o$ is opaque to them: $t$ sits in an argument position, no connective governs it, and no rule looks inside. Yet $t$ denotes $\mathrm{T}$ or $\mathrm{F}$, and $P(\top)$ together with $P(\bot)$ decides $P(t)$ outright.
+The remaining higher-order principle is _Boolean extensionality_ <a href="#chapter-references">[BBK04]</a>: in a Henkin model $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$, so two formulae denoting the same truth value are interchangeable in every context. A tableau built only from the rules above cannot use this. The rules decompose a formula's _logical skeleton_, but an atom $P(t)$ whose argument $t$ has type $o$ is opaque to them: $t$ sits in an argument position, no connective governs it, and no rule looks inside. Yet $t$ denotes $\mathrm{T}$ or $\mathrm{F}$, and $P(\top)$ together with $P(\bot)$ decides $P(t)$ outright.
 
-The two rules of this section are the mechanism that recovers exactly that. They work as a pair: _renaming_ moves an opaque $o$-typed argument out of the argument position and onto the branch as an equation, where the equality rules can reach it; _instantiation_ eliminates the parameter left behind by case analysis over its (finite) domain. Ttogether they make the propositional part of a Henkin model's function space fully accessible to a calculus whose rules otherwise only ever look at heads.
+The two rules of this section are the mechanism that recovers exactly that. They work as a pair: _renaming_ moves an opaque $o$-typed argument out of the argument position and onto the branch as an equation, where the equality rules can reach it; _instantiation_ eliminates the parameter left behind by case analysis over its (finite) domain. Together they make the propositional part of a Henkin model's function space accessible to a calculus whose remaining rules act only on heads.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Primitive Term, Parameter Head).__ A term is _primitive_ if it is the $\eta$-long form of a single head, i.e. of the shape $\lambda\bar{\tau}_n.\, h(n, \dots, 1)$; equivalently, its arguments are exactly its own binders in order. A head is a _parameter head_ if it is a parameter minted by the calculus ($\delta$-Skolemisation, renaming, lambda lifting), which by <a href="02_preliminaries.livemd">Chapter 2</a>'s representation carries a `reference` as its name; otherwise it is a _named head_, coming from $\Sigma^{\mathrm{HOL}}$ or the problem's initial parameters.
+__Definition (Primitive Term, Parameter Head).__ A term is _primitive_ if it is the $\eta$-long form of a single head, i.e. of the shape $\lambda\bar{\tau}_n.\, h(n, \dots, 1)$; equivalently, its arguments are exactly its own binders in order. A head is a _parameter head_ if it is a parameter introduced by the calculus ($\delta$-Skolemisation, renaming, lambda lifting), which by <a href="02_preliminaries.livemd">Chapter 2</a>'s representation carries a `reference` as its name; otherwise it is a _named head_, coming from $\Sigma^{\mathrm{HOL}}$ or the problem's initial parameters.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -207,7 +207,7 @@ __Definition (Extensionality Candidate).__ Let $\varphi$ be an atom whose head i
 * __(C2)__ $t \notin \mathrm{gen}(\tau)$, so that $t$ is not already one of the closed propositional terms, which would make the rule idempotent;
 * __(C3)__ $t$ contains no loose de Bruijn index, so that replacing $t$ by a closed term captures nothing and the companion equation is well-formed.
 
-A candidate is a _renaming_ candidate if $t$ is non-primitive with a named head, and an _instantiation_ candidate if $t$ is primitive with a parameter head. The two are disjoint, and the remaining two combinations are no candidate at all: a primitive term with a named head is already as decomposed as it gets, and a non-primitive term with a parameter head has had its head introduced by a previous renaming.
+A candidate is a _renaming_ candidate if $t$ is non-primitive with a named head, and an _instantiation_ candidate if $t$ is primitive with a parameter head. The two are disjoint, and the remaining two combinations are no candidate at all: a primitive term with a named head admits no further decomposition, and a non-primitive term with a parameter head has had its head introduced by a previous renaming.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -256,7 +256,7 @@ __Definition (Top-Level Fallback).__ If $\varphi$ has no candidate at any inner 
 
 ## Equality Rules
 
-__Definition (Equality Expansion).__ In the spirit of [TODO: cite e.g. Kohlhase, Higher-Order Tableaux], we extend $\alpha$-rules to expansion rules for equality, where $\varsigma \in \mathcal{S} \setminus \{o\}$:
+__Definition (Equality Expansion).__ In the spirit of Kohlhase's higher-order tableaux <a href="#chapter-references">[Koh95]</a>, we extend $\alpha$-rules to expansion rules for equality, where $\varsigma \in \mathcal{S} \setminus \{o\}$:
 
 $$
 \frac{\varphi =\!\langle o\rangle\; \psi}{\varphi \equiv \psi}(=\!\langle o\rangle) \qquad
@@ -286,7 +286,9 @@ where $c = p\{\}$ is a fresh parameter of type $\tau$.
 
 <!-- livebook:{"break_markdown":true} -->
 
-[TODO: cite superposition, normalization under a term ordering]
+Demodulation, and the discipline of rewriting only in the direction a reduction order permits, is taken over from superposition-based equational reasoning <a href="#chapter-references">[Der82, BG94, BN98]</a>, whose higher-order extension is developed by Bentkamp and others <a href="#chapter-references">[BBT+21]</a>.
+
+<!-- livebook:{"break_markdown":true} -->
 
 Demodulation is the one rule in this chapter that acts on a branch's formulae _globally_ rather than decomposing a single formula, and is therefore stated in full. Three ingredients are needed on top of the positions of <a href="#global-and-local-tableau-states">§ Global and Local Tableau States</a>: the set of equations that qualify as rewrite rules, the one-step relation they induce, and the normal form that relation reaches.
 
@@ -346,7 +348,7 @@ _Proof sketch._ Substitutivity of equality applied at $\pi$, with the equation $
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The ground restriction is a second, independent condition, and it is a refutational one rather than a soundness one. An equation carrying a rigid $\gamma$-variable is recorded on the branch; the openness test consults it and the Leibniz/extensional expansion still fires, but it never rewrites. Rewriting with it would destroy the very literal pair the branch needs in order to close: the surjective Cantor theorem yields $c(d(Y)) = Y$ with $Y$ rigid, whose left side is a primitive $\eta$-expansion, so head rewriting collapses the pair $\{c((d(Y)), X),\; Y(X)\}$ to $\{Y(X)\}$ and leaves nothing for the global substitution $[Y \mapsto \lambda \iota.\, \neg(c(1, 1))]$ to contradict. Ground equations have the opposite effect: they _create_ clashes, as when $a$, $\neg b$ and $b = a$ close only because $\neg b$ normalises to $\neg a$; and that is the case the rule exists to serve.
+> The ground restriction is a second, independent condition, and it is a refutational one rather than a soundness one. An equation carrying a rigid $\gamma$-variable is recorded on the branch; the openness test consults it and the Leibniz/extensional expansion still fires, but it never rewrites. Rewriting with it would destroy the very literal pair the branch needs in order to close: the surjective Cantor theorem yields $c(d(Y)) = Y$ with $Y$ rigid, whose left side is a primitive $\eta$-expansion, so head rewriting collapses the pair $\{c((d(Y)), X),\; Y(X)\}$ to $\{Y(X)\}$ and leaves nothing for the global substitution $[Y \mapsto \lambda \iota.\, \neg(c(1, 1))]$ to contradict. Ground equations have the opposite effect: they _create_ clashes, as when $a$, $\neg b$ and $b = a$ close only because $\neg b$ normalises to $\neg a$; and this is the case the rule is intended for.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -376,11 +378,11 @@ The first group closes the branch unconditionally; the second discharges the for
 
 ## Literal Processing
 
-$\mathrm{Lit}(B)$ is the branch's only interface to closure. Every rule of this chapter exists to feed it, and everything the branch communicates to the rest of the prover, whether the candidate closing pairs of <a href="#global-and-local-tableau-states">§ Global and Local Tableau States</a> or the countermodel of <a href="07_extensions.livemd">Chapter 7</a>, is a statement about its contents. It repays treating on its own, because a formula does not simply _arrive_ there: it is normalised twice, may be unfolded, is compared against every literal already present, and can later be replaced.
+$\mathrm{Lit}(B)$ is the branch's only interface to closure. Every rule of this chapter contributes to it, and everything the branch communicates to the rest of the prover, whether the candidate closing pairs of <a href="#global-and-local-tableau-states">§ Global and Local Tableau States</a> or the countermodel of <a href="07_extensions.livemd">Chapter 7</a>, is a statement about its contents. It is treated separately here, because admission to $\mathrm{Lit}(B)$ takes several steps: a formula is normalised twice, may be unfolded, is compared against every literal already present, and can later be replaced.
 
 <!-- livebook:{"break_markdown":true} -->
 
-Every branch is _born_ with $\{\top,\, \neg\bot\} \subseteq \mathrm{Lit}(B)$. The two discharge rules of the previous section remove $\top$ and $\neg\bot$ as _premises_, because as premises they carry no information; retaining them as _literals_ costs two entries once and makes both elements of $\mathcal{D}_o$ permanently available as closing partners. The payoff is on the flexible side. A literal $H(\bar{y})$ minted by primitive substitution, or any literal whose head is still a free variable, is tested against the two seeds like any other pair, so it can close a branch by disagreeing with a truth constant instead of waiting for a general binding to fix its head first. Both seeds are filtered out again wherever a model or a proof is reported, so they never appear as atoms of a countermodel.
+Every branch is _initialised_ with $\{\top,\, \neg\bot\} \subseteq \mathrm{Lit}(B)$. The two discharge rules of the previous section remove $\top$ and $\neg\bot$ as _premises_, because as premises they carry no information; retaining them as _literals_ costs two entries once and makes both elements of $\mathcal{D}_o$ permanently available as closing partners. The benefit concerns flex literals. A literal $H(\bar{y})$ produced by primitive substitution, or any literal whose head is still a free variable, is tested against the two seeds like any other pair, so it can close a branch by disagreeing with a truth constant instead of waiting for a general binding to fix its head first. Both seeds are filtered out again wherever a model or a proof is reported, so they never appear as atoms of a countermodel.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -416,9 +418,9 @@ __Definition (Dual Instantiation).__ Let $\varphi$ be an instantiation candidate
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The rule does not choose between treating $\varphi$ as an opaque literal and decomposing it by case analysis; it does both. The name is TPS's [TODO: cite Andrews et al., TPS; Bishop & Andrews 1998], where the same discipline is applied to definitions: keeping the undecomposed and the decomposed form simultaneously available means the search cannot fail because the wrong one was chosen, and the reconstruction can discard whichever the closure did not use.
+> The rule applies both treatments of $\varphi$: it is retained as an opaque literal and decomposed by case analysis. The name is TPS's <a href="#chapter-references">[BA98, ABB00]</a>, where the same discipline is applied to definitions: keeping the undecomposed and the decomposed form simultaneously available means the search cannot fail because the wrong one was chosen, and the reconstruction can discard whichever the closure did not use.
 > 
-> Two consequences follow from the ordering. Admitting the source first means its comparison runs first, so if it closes the branch by ground closure the $k$-fold split is never built at all, since the rule reports closure and the enumeration is never forced. When the candidate type enumerates no instances, the rule degenerates gracefully: the source is still admitted and the step behaves as a plain atomic rule.
+> Two consequences follow from the ordering. Admitting the source first means its comparison runs first, so if it closes the branch by ground closure the $k$-fold split is never built at all, since the rule reports closure and the enumeration is never forced. When the candidate type enumerates no instances, the rule degenerates to the atomic case: the source is still admitted and the step behaves as a plain atomic rule.
 > 
 > Candidate closing _pairs_ found at this point are not published; only ground closure is acted on. The reason is structural rather than an economy measure: a step returning a fan-out of children carries no effect channel in the branch's result type, so there is nowhere to attach the notification. The pairs are rediscovered in the children, which do have one.
 
@@ -452,21 +454,21 @@ __Definition (Lambda Lifting).__ Let $\varphi$ contain a closed abstraction $\la
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Lambda lifting runs once per input formula at branch creation and is recorded in the history under its own tag, so the proof object can present the original formula rather than the lifted one. The emitted axiom is an ordinary branch formula: the equality-expansion rule decomposes it extensionally or by Leibniz, so subsequent reasoning rides on the standard pipeline. Lift constants are kept out of the branch's definition map by design, so definition unfolding cannot undo a lift, and $\eta$-expansions of named constants are skipped as useless indirection.
+> Lambda lifting <a href="#chapter-references">[Joh85]</a> runs once per input formula at branch creation and is recorded in the history under its own tag, so the proof object can present the original formula rather than the lifted one. The emitted axiom is an ordinary branch formula: the equality-expansion rule decomposes it extensionally or by Leibniz, so subsequent reasoning proceeds by the ordinary rules. Lift constants are kept out of the branch's definition map by design, so definition unfolding cannot undo a lift, and $\eta$-expansions of named constants are skipped, since they add a level of indirection without adding structure.
 
 <!-- livebook:{"break_markdown":true} -->
 
-The second preprocessing step deserves to be stated without hedging, because it is the one design decision in this chapter that departs from ordinary automated-theorem-prover practice. Every formula in $\mathfrak{Shot}$ is passed through a complete decision procedure for its propositional structure before any tableau rule is chosen for it. The procedure is a _reduced ordered binary decision diagram_, built and read back on the spot.
+The second preprocessing step is the one design decision in this chapter that departs from ordinary automated-theorem-prover practice. Every formula in $\mathfrak{Shot}$ is passed through a complete decision procedure for its propositional structure before any tableau rule is chosen for it. The procedure is a _reduced ordered binary decision diagram_, built and read back for each formula.
 
-Provers in this family normally handle propositional redundancy with local rewrite rules, such as a table of tautologies, unit simplification and subsumption on clauses, because a full propositional decision procedure is thought too expensive to run inside the search loop. Shot takes the opposite position. In a higher-order tableau, the expensive rules are $\gamma$ and primitive substitution, and their cost dominates the propositional layer by orders of magnitude; anything that keeps a formula from ever reaching them pays for itself many times over. A propositional tautology reaching the queue would be decomposed by $\alpha$/$\beta$ rules into literals that clutter clash detection, and a propositionally unsatisfiable formula would be split by $\beta$ into branches that each have to be closed separately. The BDD collapses both to a single node before the rule loop sees them.
-
-<!-- livebook:{"break_markdown":true} -->
-
-__Definition (Propositional Abstraction).__ A formula $\varphi$ of type $o$ is read as a propositional formula over _atoms_: every maximal subterm of $\varphi$ whose head is not one of $\top, \bot, \neg, \lor, \land, \supset, \equiv$ is an atom. Because terms are hash-consed, an atom is identified with its term ID, and syntactically equal atoms are literally the same propositional variable.
+Provers in this family normally handle propositional redundancy with local rewrite rules, such as a table of tautologies, unit simplification and subsumption on clauses, because a full propositional decision procedure is thought too expensive to run inside the search loop. Shot takes the opposite position. In a higher-order tableau, the expensive rules are $\gamma$ and primitive substitution, and their cost exceeds that of the propositional layer by orders of magnitude, so the cost of preprocessing that prevents a formula from reaching them is small relative to the cost it avoids. A propositional tautology reaching the queue would be decomposed by $\alpha$/$\beta$ rules into literals that enlarge the set scanned by clash detection, and a propositionally unsatisfiable formula would be split by $\beta$ into branches that each have to be closed separately. The BDD reduces both to a single node before the rule loop reaches them.
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (ROBDD).__ A _binary decision diagram_ over a totally ordered set of variables is $\top$, $\bot$, or a node $\langle v, h, l\rangle$ with $h, l$ diagrams whose variables all exceed $v$. It denotes $(v \land h) \lor (\neg v \land l)$. It is _reduced_ if no node has $h = l$, and _ordered_ by construction. The variable order used is the ascending order of atom term IDs, so it is total, stable across a proof, and free to compute.
+__Definition (Propositional Abstraction).__ A formula $\varphi$ of type $o$ is read as a propositional formula over _atoms_: every maximal subterm of $\varphi$ whose head is not one of $\top, \bot, \neg, \lor, \land, \supset, \equiv$ is an atom. Because terms are hash-consed, an atom is identified with its term ID, and syntactically equal atoms are the same propositional variable.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Definition (ROBDD).__ A _binary decision diagram_ <a href="#chapter-references">[Bry86]</a> over a totally ordered set of variables is $\top$, $\bot$, or a node $\langle v, h, l\rangle$ with $h, l$ diagrams whose variables all exceed $v$. It denotes $(v \land h) \lor (\neg v \land l)$. It is _reduced_ if no node has $h = l$, and _ordered_ by construction. The variable order used is the ascending order of atom term IDs, so it is total, stable across a proof, and free to compute.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -508,15 +510,15 @@ __Proposition (Decision).__ Because the diagram is reduced and ordered under a f
 
 <!-- livebook:{"break_markdown":true} -->
 
-Canonicity is what makes the two extreme verdicts free; it does not make the readback small. A diagram can be exponentially larger than the formula that produced it, and the readback is linear in the diagram, so simplification is not a size guarantee. What it _is_ is a guarantee about content: the readback mentions an atom only if the propositional function genuinely depends on it, so every connective it does emit is one the tableau would have had to decompose anyway.
+Canonicity is what makes the two extreme verdicts free; it does not make the readback small. A diagram can be exponentially larger than the formula that produced it, and the readback is linear in the diagram, so simplification guarantees nothing about size. What it guarantees concerns content: the readback mentions an atom only if the propositional function genuinely depends on it, so every connective it does emit is one the tableau would have had to decompose anyway.
 
 <!-- livebook:{"break_markdown":true} -->
 
-This is where the oracle meets the rule table. A formula whose diagram is $\top$ is discharged by the $(\top)$ rule; one whose diagram is $\bot$ closes the branch by the $(\bot)$ rule at cost $0$. Neither outcome requires a single $\alpha$-, $\beta$- or $\gamma$-step. Everything in between arrives at the classifier in a normalised form whose atoms are exactly the propositionally relevant ones: the $a$ of $(a \land b) \lor (a \land \neg b)$ survives, the $b$ does not, and the $\beta$-rule that would have split on it is never generated.
+The two extreme verdicts are handled directly by the rule table. A formula whose diagram is $\top$ is discharged by the $(\top)$ rule; one whose diagram is $\bot$ closes the branch by the $(\bot)$ rule at cost $0$. Neither outcome requires a single $\alpha$-, $\beta$- or $\gamma$-step. Everything in between arrives at the classifier in a normalised form whose atoms are exactly the propositionally relevant ones: the $a$ of $(a \land b) \lor (a \land \neg b)$ survives, the $b$ does not, and the $\beta$-rule that would have split on it is never generated.
 
 <!-- livebook:{"break_markdown":true} -->
 
-> `ShotTx.Util.PropSimplify` is a self-contained ROBDD over term IDs: nodes are `:bdd_top`, `:bdd_bot`, or `{var, high, low}`, `mk/3` is the reduction rule, and `bdd_and`/`bdd_or`/`bdd_neg` are the operations above. `simplify/2` runs the whole construction inside a term-factory scratchpad, so the intermediate terms built during readback die with it and only the result is committed. The `simplification` parameter selects the depth: `:none` disables the oracle, `:shallow` normalises only the formula's top-level propositional structure (treating quantifier and abstraction bodies as opaque atoms), and `:deep` (the default) folds bottom-up over the term DAG and simplifies every type-$o$ subformula, including the bodies of quantifiers and of abstractions whose goal type is $o$.
+> `ShotTx.Util.PropSimplify` is a self-contained ROBDD over term IDs: nodes are `:bdd_top`, `:bdd_bot`, or `{var, high, low}`, `mk/3` is the reduction rule, and `bdd_and`/`bdd_or`/`bdd_neg` are the operations above. `simplify/2` runs the whole construction inside a term-factory scratchpad, so the intermediate terms built during readback are discarded with it and only the result is committed. The `simplification` parameter selects the depth: `:none` disables the oracle, `:shallow` normalises only the formula's top-level propositional structure (treating quantifier and abstraction bodies as opaque atoms), and `:deep` (the default) folds bottom-up over the term DAG and simplifies every pure $o$-type subformula, including the bodies of quantifiers and of abstractions of $o$-type.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -567,7 +569,7 @@ Rules are drawn from a priority queue rather than a stack, so the order in which
 
 <!-- livebook:{"break_markdown":true} -->
 
-> The shape of the table is the search heuristic. Closure is checked before anything else; linear decomposition precedes branching; the two rules that generate unbounded work ($\gamma$ and primitive substitution) are priced so that a branch is decomposed as far as it will go before either fires, and $\gamma$ becomes progressively more expensive as its counter rises. Leibniz expansion is priced above extensional expansion because it introduces a quantifier over a predicate type and so feeds the most expensive rule in the table. Two named alternatives are available for ablation: a uniform cost, which degenerates the queue to insertion order, and a depth-first cost, which pushes every branching rule far back.
+> The table is the search heuristic. Closure is checked before anything else; linear decomposition precedes branching; the two rules that generate unbounded work ($\gamma$ and primitive substitution) are priced so that a branch is decomposed as far as possible before either fires, and $\gamma$ becomes progressively more expensive as its counter rises. Leibniz expansion is priced above extensional expansion because it introduces a quantifier over a predicate type and so feeds the most expensive rule in the table. Two named alternatives are available for ablation: a uniform cost, which degenerates the queue to insertion order, and a depth-first cost, which pushes every branching rule far back.
 
 ## Rule Implementation
 
@@ -636,3 +638,27 @@ end
 ## Footnotes
 
 $^1$Consider $\varphi \lor (\psi \land \neg\varphi) \;\;\Leftrightarrow\;\; (\varphi \lor \psi) \land (\varphi \lor \neg\varphi) \;\;\Leftrightarrow\;\; \varphi \lor \psi$
+
+## Chapter References
+
+* __[ABB00]__ Peter B. Andrews, Matthew Bishop, and Chad E. Brown. System description: TPS: A theorem proving system for type theory. In _Automated Deduction (CADE-17)_, LNCS 1831, pages 164–169. Springer, 2000.
+* __[And89]__ Peter B. Andrews. On connections and higher-order logic. _Journal of Automated Reasoning_, 5(3):257–291, 1989.
+* __[BA98]__ Matthew Bishop and Peter B. Andrews. Selectively instantiating definitions. In _Automated Deduction (CADE-15)_, LNCS 1421, pages 365–380. Springer, 1998.
+* __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
+* __[BBT+21]__ Alexander Bentkamp, Jasmin Blanchette, Sophie Tourret, Petar Vukmirović, and Uwe Waldmann. Superposition with lambdas. _Journal of Automated Reasoning_, 65(7):893–940, 2021.
+* __[BG94]__ Leo Bachmair and Harald Ganzinger. Rewrite-based equational theorem proving with selection and simplification. _Journal of Logic and Computation_, 4(3):217–247, 1994.
+* __[BN98]__ Franz Baader and Tobias Nipkow. _Term Rewriting and All That_. Cambridge University Press, 1998.
+* __[Bry86]__ Randal E. Bryant. Graph-based algorithms for Boolean function manipulation. _IEEE Transactions on Computers_, C-35(8):677–691, 1986.
+* __[Der82]__ Nachum Dershowitz. Orderings for term-rewriting systems. _Theoretical Computer Science_, 17(3):279–301, 1982.
+* __[Fit96]__ Melvin Fitting. _First-Order Logic and Automated Theorem Proving_, second edition. Graduate Texts in Computer Science. Springer, 1996.
+* __[Hah01]__ Reiner Hähnle. Tableaux and related methods. In _Handbook of Automated Reasoning_, volume 1, chapter 3, pages 100–178. Elsevier and MIT Press, 2001.
+* __[HS94]__ Reiner Hähnle and Peter H. Schmitt. The liberalized $\delta$-rule in free variable semantic tableaux. _Journal of Automated Reasoning_, 13(2):211–221, 1994.
+* __[Joh85]__ Thomas Johnsson. Lambda lifting: Transforming programs to recursive equations. In _Functional Programming Languages and Computer Architecture (FPCA 1985)_, LNCS 201, pages 190–203. Springer, 1985.
+* __[Koh95]__ Michael Kohlhase. Higher-order tableaux. In _Theorem Proving with Analytic Tableaux and Related Methods (TABLEAUX 1995)_, LNCS 918, pages 294–309. Springer, 1995.
+* __[Smu68]__ Raymond M. Smullyan. _First-Order Logic_. Ergebnisse der Mathematik und ihrer Grenzgebiete 43. Springer, 1968.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="04_unification.livemd">Chapter 4: Higher-Order Unification</a>
