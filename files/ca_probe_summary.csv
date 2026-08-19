@@ -1,0 +1,17 @@
+measure,statistic,pool_auto,pool_serial,ratio
+tableau steps,total,14353411,2460501,5.83
+peak open branches,median run,196,30,6.53
+runs dispatching at least one search,count,4826,4442,1.09
+searches dispatched,total,9347,8317,1.12
+searches per 1000 steps,rate,0.65,3.38,0.19
+checks skipped (no clash options),total,208292,175057,1.19
+checks suppressed (search in flight),total,5559732,677507,8.21
+suppressed per search dispatched,rate,595,81,7.30
+recorded time inside search (ms),total,3997654,4113722,0.97
+share of wall clock in search (%),rate,46.5,51.6,0.90
+longest single search (ms),max,1982,1977,1.00
+branches per search,mean,21.41,10.37,2.06
+candidates per search,mean,996.84,161.05,6.19
+searches finding a closure (%),rate,12.4,13.6,0.91
+searches killed unfinished (%),rate,17.8,10.8,1.65
+problems solved (majority of 3 repeats),count,389,381,1.02

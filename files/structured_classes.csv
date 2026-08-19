@@ -1,0 +1,13 @@
+class,problems,stable,never,flip
+M_beta,47,37,9,1
+M_beta-eta,1,1,0,0
+M_beta-b,21,19,1,1
+M_beta-eta-b,1,0,1,0
+M_beta-xi,6,0,6,0
+M_beta-xi-b,14,2,11,1
+M_beta-f,6,0,6,0
+M_beta-f-b,9,3,3,3
+property q,3,1,2,0
+signature,13,12,1,0
+non-theorem,8,0,8,0
+warm-up,1,1,0,0

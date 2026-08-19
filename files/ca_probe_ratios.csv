@@ -1,0 +1,9 @@
+measure,ratio
+checks suppressed,8.21
+peak open branches,6.53
+candidates per search,6.19
+tableau steps,5.83
+branches per search,2.06
+searches dispatched,1.12
+problems solved,1.02
+time inside search,0.97
