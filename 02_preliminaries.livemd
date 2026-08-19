@@ -139,7 +139,7 @@ Kino.nothing
 ~t| $i > ($i > $o) > $o | |> Kino.Tree.new
 ```
 
-## Signatures and Variables
+## Terms
 
 __Definition (Signature).__
 A _signature_ $\Sigma$ is a finite set of declarations $c : \sigma$ with $\sigma \in \mathfrak{T}$, in which every constant symbol $c$ is declared at most once.
@@ -149,7 +149,7 @@ A _signature_ $\Sigma$ is a finite set of declarations $c : \sigma$ with $\sigma
 __Definition (Free Variable, Parameter).__
 Let $\mathcal{V} = \biguplus_{\tau \in \mathcal{T}} \mathcal{V}_\tau$ and $\mathcal{P} = \biguplus_{\tau \in \mathcal{T}} \mathcal{P}_\tau$ be families of countably infinite, pairwise disjoint sets with $\mathcal{V} \cap \mathcal{P} = \emptyset$. Elements of $\mathcal{V}$ are _free variables_ ($X, Y$); elements of $\mathcal{P}$ are _parameters_ ($p, q$).
 
-## Terms
+<!-- livebook:{"break_markdown":true} -->
 
 __Definition (Term).__
 Given a signature $\Sigma$, the set of _terms_ $\Lambda(\Sigma)$ ($s$, $t$, $u$, $v$) is defined by
@@ -241,6 +241,7 @@ Kino.nothing
 > A constructed term shows the representation directly. Note that `:args` holds term IDs rather than nested terms, so the DAG is flat in the struct and unfolds only through the factory:
 
 ```elixir
+import ShotDs.Hol.Sigils
 alias ShotDs.Stt.TermFactory, as: TF
 
 t = with_context ~e[p: $i>$o, q: $i>$o, f: $i>$i, a: $i], fn ->
@@ -251,6 +252,8 @@ TF.get_term!(t) |> Kino.Tree.new
 ```
 
 ```elixir
+alias ShotDs.Stt.TermFactory, as: TF
+
 [left, right] = TF.get_term!(t).args
 
 TF.get_term!(left) |> Kino.Tree.new()
@@ -259,6 +262,8 @@ TF.get_term!(left) |> Kino.Tree.new()
 > Both conjuncts reference the same node for $f(a)$, which is memoised once:
 
 ```elixir
+alias ShotDs.Stt.TermFactory, as: TF
+
 TF.get_term!(left).args == TF.get_term!(right).args
 ```
 

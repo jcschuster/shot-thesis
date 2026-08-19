@@ -590,10 +590,9 @@ Every problem of the structured set that Shot does not close is reported as `Tim
 The verdict `:unknown` is reachable with deepening disabled, which fixes the bounds and lets the search exhaust them. Example 8 is the case: at `initial_gamma_limit` $1$ and `initial_prim_limit` $1$ the search exhausts and reports `:unknown`, while at $3$ and $2$ the space is large enough that the clock runs out first and the verdict returns to `Timeout`.
 
 ```elixir
-leibniz_to_primitive =
-  with_context(~e[a: $i, b: $i], fn ->
-    ~f{ (![P: $i>$o]: ((P @ a) <=> (P @ b))) => (a = b) }
-  end)
+leibniz_to_primitive = with_context ~e[a: $i, b: $i], fn ->
+  ~f{ (![P: $i>$o]: ((P @ a) <=> (P @ b))) => (a = b) }
+end
 
 for opts <- [
       [timeout: 60_000],
@@ -606,16 +605,16 @@ for opts <- [
       ]
     ] do
   {us, res} = :timer.tc(fn -> prove(leibniz_to_primitive, [], opts) end)
-  IO.puts "#{inspect(opts)} -> #{format_result(res)} in #{div(us, 1000)} ms"
+  IO.puts "#{inspect opts} -> #{format_result res} in #{div us, 1000} ms"
 end
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-[timeout: 60000] -> Timeout in 65684 ms
-[timeout: 60000, iterative_deepening: false] -> UNK in 51062 ms
-[timeout: 60000, iterative_deepening: false, initial_gamma_limit: 3, initial_prim_limit: 2] -> Timeout in 63428 ms
+[timeout: 60000] -> Timeout in 63847 ms
+[timeout: 60000, iterative_deepening: false] -> UNK in 60001 ms
+[timeout: 60000, iterative_deepening: false, initial_gamma_limit: 3, initial_prim_limit: 2] -> Timeout in 64701 ms
 ```
 
 <!-- livebook:{"output":true} -->

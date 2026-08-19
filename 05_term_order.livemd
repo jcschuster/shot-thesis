@@ -95,6 +95,7 @@ Status is the parameter whose usable settings the LNF restriction changes, and t
 
 ```elixir
 import ShotDs.Hol.Sigils
+alias ShotTo.Parameters
 
 diff_rules =
   with_context ~e[F: r>r, G: r>r, sin: r>r, cos: r>r,
@@ -164,6 +165,8 @@ Two worked comparisons. First the subterm rule (a term is greater than a constan
 ```elixir
 import ShotDs.Hol.{Definitions, Sigils, Dsl}
 alias ShotDs.Stt.TermFactory, as: TF
+alias ShotDs.Util.LatexFormatter, as: LF
+alias ShotTo.Parameters
 
 prec = Parameters.new const_precedence: %{"f" => 1, "c" => 0}
 
@@ -187,6 +190,10 @@ fc = app f, c
 The precedence rule states that a term headed by a greater constant dominates one headed by a lesser, provided it dominates the lesser term's arguments:
 
 ```elixir
+import ShotDs.Hol.{Definitions, Dsl}
+alias ShotDs.Util.LatexFormatter, as: LF
+alias ShotTo.Parameters
+
 # g outranks h in the constant precedence. Then g(c) > h(c) by the precedence
 # rule, since g(c) > c handles h's argument.
 prec2 = Parameters.new const_precedence: %{"g" => 2, "h" => 1, "c" => 0}
@@ -221,11 +228,16 @@ $$
 $$
 
 ```elixir
+import ShotDs.Hol.Definitions
+alias ShotTo.Parameters
+
 prim = equals_term type_i()
 leibniz = leibniz_equality type_i()
 
 expand = Parameters.new const_precedence: %{"=" => 1}
-flat = Parameters.new const_precedence: %{"=" => 0, "∀" => 1, "≡" => 2}
+# "\u2200" is the forall constant, "\u2261" the equivalence constant; written as
+# escapes to keep the cell ASCII.
+flat = Parameters.new const_precedence: %{"=" => 0, "\u2200" => 1, "\u2261" => 2}
 
 """
 | Precedence                          | `compare/3`                         |
@@ -276,6 +288,7 @@ The two layers can be made to diverge. Under a precedence that leaves two unrela
 
 ```elixir
 alias ShotTx.Prover.TermOrder
+alias ShotTo.Parameters
 import ShotDs.Hol.{Definitions, Dsl}
 
 # a and b are equivalent in precedence (both rank 0) and unrelated by

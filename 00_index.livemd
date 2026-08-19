@@ -38,7 +38,7 @@ Tableau calculi for higher-order logic decompose a problem without clausifying i
 
 __Keywords:__ Automated Theorem Proving $\cdot$ Higher-Order Logic $\cdot$ Semantic Tableaux $\cdot$ Parallel Proof Search
 
-## Ackgnowledgements
+## Acknowledgements
 
 I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulating discussions during the preparation of this work. Their feedback and pointers to literature and concepts for higher-order proof search and adjacent topics was invaluable for both the design and the implementation of the calculus.
 
@@ -53,11 +53,12 @@ I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulati
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.1</span><a href="01_introduction.livemd#higherorder-proof-search">Higher-Order Proof Search</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.2</span><a href="01_introduction.livemd#analytic-tableaux-in-higherorder-proving">Analytic Tableaux in Higher-Order Proving</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.3</span><a href="01_introduction.livemd#rigidity-locality-and-parallel-search">Rigidity, Locality and Parallel Search</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.4</span><a href="01_introduction.livemd#the-beam-as-platform-for-concurrency">The BEAM as Platform for Concurrency</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.5</span><a href="01_introduction.livemd#executable-presentation">Executable Presentation</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.6</span><a href="01_introduction.livemd#contributions">Contributions</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.7</span><a href="01_introduction.livemd#scope-and-nongoals">Scope and Non-Goals</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.8</span><a href="01_introduction.livemd#outline">Outline</a>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.4</span><a href="01_introduction.livemd#agentbased-and-cooperative-proof-search">Agent-Based and Cooperative Proof Search</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.5</span><a href="01_introduction.livemd#the-beam-as-platform-for-concurrency">The BEAM as Platform for Concurrency</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.6</span><a href="01_introduction.livemd#executable-presentation">Executable Presentation</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.7</span><a href="01_introduction.livemd#contributions">Contributions</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.8</span><a href="01_introduction.livemd#scope-and-nongoals">Scope and Non-Goals</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">1.9</span><a href="01_introduction.livemd#outline">Outline</a>
     </div>
   </td>
 </tr>
@@ -67,18 +68,17 @@ I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulati
     <div style="margin-top: 0.35rem; line-height: 1.85;">
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.1</span><a href="02_preliminaries.livemd#notation">Notation</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.2</span><a href="02_preliminaries.livemd#types">Types</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.3</span><a href="02_preliminaries.livemd#signatures-and-variables">Signatures and Variables</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.4</span><a href="02_preliminaries.livemd#terms">Terms</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.5</span><a href="02_preliminaries.livemd#typing">Typing</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.6</span><a href="02_preliminaries.livemd#shifting-and-substitution">Shifting and Substitution</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.7</span><a href="02_preliminaries.livemd#reduction-and-normal-forms">Reduction and Normal Forms</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.8</span><a href="02_preliminaries.livemd#parameter-terms">Parameter Terms</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.9</span><a href="02_preliminaries.livemd#syntactic-equality-and-unification">Syntactic Equality and Unification</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.10</span><a href="02_preliminaries.livemd#connectives-quantifiers-and-equality">Connectives, Quantifiers and Equality</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.11</span><a href="02_preliminaries.livemd#frames-and-interpretations">Frames and Interpretations</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.12</span><a href="02_preliminaries.livemd#denotation-and-models">Denotation and Models</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.13</span><a href="02_preliminaries.livemd#extensionality-and-leibniz-equality">Extensionality and Leibniz Equality</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.14</span><a href="02_preliminaries.livemd#satisfiability-and-entailment">Satisfiability and Entailment</a>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.3</span><a href="02_preliminaries.livemd#terms">Terms</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.4</span><a href="02_preliminaries.livemd#typing">Typing</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.5</span><a href="02_preliminaries.livemd#shifting-and-substitution">Shifting and Substitution</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.6</span><a href="02_preliminaries.livemd#reduction-and-normal-forms">Reduction and Normal Forms</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.7</span><a href="02_preliminaries.livemd#parameter-terms">Parameter Terms</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.8</span><a href="02_preliminaries.livemd#syntactic-equality-and-unification">Syntactic Equality and Unification</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.9</span><a href="02_preliminaries.livemd#connectives-quantifiers-and-equality">Connectives, Quantifiers and Equality</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.10</span><a href="02_preliminaries.livemd#frames-and-interpretations">Frames and Interpretations</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.11</span><a href="02_preliminaries.livemd#denotation-and-models">Denotation and Models</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.12</span><a href="02_preliminaries.livemd#extensionality-and-leibniz-equality">Extensionality and Leibniz Equality</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">2.13</span><a href="02_preliminaries.livemd#satisfiability-and-entailment">Satisfiability and Entailment</a>
     </div>
   </td>
 </tr>
@@ -96,8 +96,8 @@ I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulati
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.8</span><a href="03_tableaux.livemd#literal-processing">Literal Processing</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.9</span><a href="03_tableaux.livemd#preprocessing-and-bdds">Preprocessing and BDDs</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.10</span><a href="03_tableaux.livemd#search-bounds">Search Bounds</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.11</span><a href="03_tableaux.livemd#rule-priority">Rule Priority</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.12</span><a href="03_tableaux.livemd#rule-implementation">Rule Implementation</a>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.11</span><a href="03_tableaux.livemd#soundness-and-completeness">Soundness and Completeness</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">3.12</span><a href="03_tableaux.livemd#rule-priority-and-implementation">Rule Priority and Implementation</a>
     </div>
   </td>
 </tr>
@@ -111,9 +111,7 @@ I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulati
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.4</span><a href="04_unification.livemd#flexflex-deferral">Flex-Flex: Deferral</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.5</span><a href="04_unification.livemd#the-procedure">The Procedure</a><br/>
       <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.6</span><a href="04_unification.livemd#a-worked-enumeration">A Worked Enumeration</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.7</span><a href="04_unification.livemd#visualising-the-search">Visualising the Search</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.8</span><a href="04_unification.livemd#depth-and-completeness">Depth and Completeness</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.9</span><a href="04_unification.livemd#decidable-fragments-sidenote">Decidable Fragments</a>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">4.7</span><a href="04_unification.livemd#depth-completeness-and-decidable-fragments">Depth, Completeness and Decidable Fragments</a>
     </div>
   </td>
 </tr>
@@ -163,18 +161,14 @@ I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulati
   <td style="vertical-align: top; text-align: right; padding: 0.7rem 1rem 0.7rem 0; white-space: nowrap; color: #6a737d; font-variant-numeric: tabular-nums;">8</td>
   <td style="vertical-align: top; padding: 0.7rem 0;"><a href="08_evaluation.livemd"><strong>Evaluation</strong></a>
     <div style="margin-top: 0.35rem; line-height: 1.85;">
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.1</span><a href="08_evaluation.livemd#overview">Overview</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.2</span><a href="08_evaluation.livemd#method">Method</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.3</span><a href="08_evaluation.livemd#scoring">Scoring</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.4</span><a href="08_evaluation.livemd#baseline">Baseline</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.5</span><a href="08_evaluation.livemd#ablating-the-agents">Ablating the Agents</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.6</span><a href="08_evaluation.livemd#ablating-the-calculus">Ablating the Calculus</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.7</span><a href="08_evaluation.livemd#ablating-the-search-control">Ablating the Search Control</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.8</span><a href="08_evaluation.livemd#scaling-with-the-worker-pool">Scaling with the Worker Pool</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.9</span><a href="08_evaluation.livemd#closure-search-under-the-two-pool-sizes">Closure Search under the Two Pool Sizes</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.10</span><a href="08_evaluation.livemd#the-structured-problem-set">The Structured Problem Set</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.11</span><a href="08_evaluation.livemd#coverage-by-model-class">Coverage by Model Class</a><br/>
-      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.12</span><a href="08_evaluation.livemd#threats-to-validity">Threats to Validity</a>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.1</span><a href="08_evaluation.livemd#method-and-scoring">Method and Scoring</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.2</span><a href="08_evaluation.livemd#baseline">Baseline</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.3</span><a href="08_evaluation.livemd#ablating-the-agents-the-calculus-and-the-search-control">Ablating the Agents, the Calculus and the Search Control</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.4</span><a href="08_evaluation.livemd#scaling-with-the-worker-pool">Scaling with the Worker Pool</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.5</span><a href="08_evaluation.livemd#closure-search-under-the-two-pool-sizes">Closure Search under the Two Pool Sizes</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.6</span><a href="08_evaluation.livemd#the-structured-problem-set">The Structured Problem Set</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.7</span><a href="08_evaluation.livemd#coverage-by-model-class">Coverage by Model Class</a><br/>
+      <span style="display: inline-block; min-width: 2.9em; color: #6a737d; font-variant-numeric: tabular-nums;">8.8</span><a href="08_evaluation.livemd#threats-to-validity">Threats to Validity</a>
     </div>
   </td>
 </tr>

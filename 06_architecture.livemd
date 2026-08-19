@@ -98,6 +98,42 @@ graph TD
 """ 
 ```
 
+<!-- livebook:{"output":true} -->
+
+```mermaid
+graph TD
+  SS["SessionSupervisor<br/>(:rest_for_one)"]
+  EK["EtsKeeper<br/>owns session tables"]
+  TS["Task.Supervisor<br/>async CSP dispatches"]
+  MG["Manager<br/>orchestration + deepening"]
+  CA["ContradictionAgent<br/>global closure (CSP)"]
+  SA["SuggestionAgent<br/>heuristic hints (opt-out)"]
+  MA["ModelAgent<br/>satisfiability probes (opt-in)"]
+  BS["DynamicSupervisor<br/>worker pool"]
+  W1["Worker 1"]
+  W2["Worker 2"]
+  WN["Worker N"]
+
+  SS --> EK
+  SS --> TS
+  SS --> MG
+  SS --> CA
+  SS --> SA
+  SS --> MA
+  SS --> BS
+  BS --> W1
+  BS --> W2
+  BS --> WN
+
+  classDef keeper fill:#e3f2fd,stroke:#1565c0,color:#0d47a1;
+  classDef agent fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+  classDef worker fill:#eeeeee,stroke:#999999,color:#333333;
+  class EK keeper;
+  class CA,SA,MA agent;
+  class W1,W2,WN worker;
+
+```
+
 Both the order of children and the restart strategy carry meaning. `SessionSupervisor` uses `:rest_for_one`: children are started in the listed order, and if one crashes, it and everything started _after_ it restart, while everything started _before_ it stays untouched. The `EtsKeeper` comes first so that it survives a crash of any downstream process, since the tables holding statistics, traces, and the work queue outlive a Manager or agent failure and remain available for post-mortem inspection. The worker pool comes last, under its own `DynamicSupervisor`, because workers are the most numerous and the most disposable.
 
 > `ShotTx.Prover.SessionSupervisor.init/1` lists these children in this order, with `strategy: :rest_for_one`. The whole tree is addressed through a `Registry` keyed on `{session_id, name}`, so multiple proof sessions run concurrently in one VM without colliding. The prover is itself safe to call from parallel callers. The public `ShotTx.Prover.prove/*` starts one tree under the top-level `ShotTx.SessionSpawner`, blocks synchronously on the Manager until the search terminates, and lets the tree shut down.
@@ -208,6 +244,51 @@ sequenceDiagram
 """
 ```
 
+<!-- livebook:{"output":true} -->
+
+```mermaid
+sequenceDiagram
+  participant C as Caller
+  participant MG as Manager
+  participant WQ as work_queue (ETS)
+  participant W as Worker
+  participant PS as branch_evidence PubSub
+  participant CA as ContradictionAgent
+  participant TS as Task.Supervisor
+
+  C->>MG: prove(conjecture)
+  MG->>WQ: seed root branch
+  MG->>W: spawn N workers
+
+  loop until closed / stalled / timeout
+    W->>WQ: checkout branch
+    Note over W: Branch.step/4 (pure)
+    alt branch splits
+      W->>WQ: push child branches
+      W->>PS: broadcast {:branch_split, parent, children}
+    else branch has closing options
+      W->>PS: broadcast {:local_clashes, branch, options}
+    else branch closes on ground contradiction
+      W->>PS: broadcast {:branch_closed, branch}
+    end
+    PS-->>CA: deliver evidence
+    CA->>TS: dispatch CSP (union of one option per open branch)
+    Note over TS: ShotUn.unify(...) |> take(1)
+    alt common unifier found
+      TS-->>CA: {:ok, theta}
+      CA->>MG: {:proof_result, {:unsat, theta}}
+      MG-->>C: {:thm, proof}
+    else no global unifier yet
+      TS-->>CA: :error
+      Note over CA: keep accumulating evidence
+    end
+  end
+
+  Note over MG: workers all idle, trigger deepening
+  MG->>W: {:wake_up, new_gamma, new_prim_depth}
+
+```
+
 Three features of this flow determine the architecture's behaviour. First, the worker and $\mathcal{CA}$ never call each other. The worker's only outbound communication about closure is a broadcast; $\mathcal{CA}$'s only inbound is a subscription. Either could be replaced, duplicated, or (in $\mathcal{CA}$'s case) joined by a second subscriber without any modification to the worker. That is what $\mathcal{SA}$ and $\mathcal{MA}$ do. Second, the CSP fires _eagerly and asynchronously_. Every piece of new evidence can trigger a solve, and the solve runs on a Task so $\mathcal{CA}$ remains responsive. The prover therefore attempts termination continuously and is never serialised on the closure check. Third, the Manager's role in the steady state is small (seed, spawn, adjudicate the final result) and grows only when the search stalls.
 
 ## Iterative Deepening
@@ -267,6 +348,30 @@ The verdict is `THM`: the negation is unsatisfiable, so the conjecture is a theo
 proof
 |> ShotTx.Proof.to_mermaid()
 |> Kino.Mermaid.new()
+```
+
+<!-- livebook:{"output":true} -->
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#999999', 'edgeLabelBackground': '#ffffff', 'fontFamily': 'sans-serif'}}}%%
+graph TD;
+  classDef given fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1,rx:8px,ry:8px;
+  classDef rule fill:#eeeeee,stroke:#999999,stroke-width:2px,color:#333333,rx:8px,ry:8px;
+  classDef closure fill:#fff3e0,stroke:#cc5500,stroke-width:2px,color:#000000,rx:8px,ry:8px;
+  classDef model fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20,rx:8px,ry:8px;
+  classDef subst fill:#f9fbe7,stroke:#827717,stroke-width:2px,color:#000000,rx:8px,ry:8px,stroke-dasharray: 5 5;
+  classDef bdd_oracle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#880e4f,rx:8px,ry:8px,stroke-dasharray: 3 3;
+  N0["$${\text{(1)}\;\text{given}\;\neg ((\forall X.\,\mathrm{p}\,X) \supset (\mathrm{p}\,\mathrm{a}))}$$"]:::given;
+  N1["$$\begin{aligned}&\text{(2)}\;\forall X.\,\mathrm{p}\,X\\\\&\text{(¬⊃}\;\text{on}\;\text{1)}\end{aligned}$$"]:::rule;
+  N2["$$\begin{aligned}&\text{(3)}\;\neg (\mathrm{p}\,\mathrm{a})\\\\&\text{(¬⊃}\;\text{on}\;\text{1)}\end{aligned}$$"]:::rule;
+  N3["$$\begin{aligned}&\text{(4)}\;\mathrm{p}\,X\\\\&\text{(∀}\;\text{on}\;\text{2)}\end{aligned}$$"]:::rule;
+  N4["$$\begin{aligned}&\bot\\\\&\text{(4,}\;\text{3)}\end{aligned}$$"]:::closure;
+  N0 -.-> N1;
+  N1 -.-> N2;
+  N2 -.-> N3;
+  N3 -.-> N4;
+  Sub["$$\begin{aligned}&\text{Global}\;\text{Substitution:}\\\\&\bullet\;X\;\mapsto\;\mathrm{a}\end{aligned}$$"]:::subst;
+
 ```
 
 > _Behind this one tree: the Manager seeded the negated conjecture, a worker applied $\neg\!\supset$ to split off $\forall X.\,p~X$ and $\neg(p\,a)$, the $\gamma$-rule introduced a fresh $X$ for the universal, the worker broadcast the clash $\{p\,X, \neg p\,a\}$, $\mathcal{CA}$'s CSP handed $\{p\,X \overset{?}{=} p\,a\}$ to `ShotUn.unify` and got $[X \mapsto a]$, and that global substitution (closing the single open branch) was reported back and reconstructed into the derivation shown. The unifier in the proof's substitution is the one <a href="04_unification.livemd">Chapter 4</a> produces for this disagreement: local expansion, published clash, global unification._

@@ -19,7 +19,7 @@ The third component reads a different shared table. Every branch writes its own 
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Agent-based proof search has a direct predecessor in $\Omega$-Ants <a href="#chapter-references">[BS98, Sor01]</a>, and in the higher-order successor of that design inside Leo-III <a href="#chapter-references">[SWB16, SB21]</a>, where concurrent processes compute possible instantiations for the arguments of an inference rule and record them on a blackboard from which a command is eventually chosen, a selection Leo-III makes by an approximation algorithm for combinatorial auctions over the read and write sets of the proposed tasks. Leo-III's rule-level agent mode was reported as "not competitive and still experimental", and its competitive configuration runs a sequential loop inside one agent <a href="#chapter-references">[BSW17]</a>. Two differences matter here. In $\Omega$-Ants the blackboard is the coordination point and the agents exist to fill it, whereas here the shared tables are passive and coordination happens through a broadcast, so an agent is added by subscribing rather than by registration with a scheduler. $\Omega$-Ants agents also suggest the next command to a proof planner, whereas $\mathcal{SA}$ and $\mathcal{MA}$ never direct the search: one publishes hints that workers may ignore, the other answers a question the search did not ask. The blackboard idea is shared; the direction of control is inverted.
+The lineage of this design is set out in <a href="01_introduction.livemd#agentbased-and-cooperative-proof-search">§ Agent-Based and Cooperative Proof Search</a>: $\Omega$-Ants and its resource-adaptive form OANTS <a href="#chapter-references">[BS98, Sor01, BSJK08]</a>, the cooperative use of an external reasoner in LEO-II <a href="#chapter-references">[BSJK05, BPTF08]</a>, and the agent framework of Leo-III on the LeoPARD substrate <a href="#chapter-references">[SWB16, BSW17, WSB15]</a>. Two differences bear on the agents of this chapter. In $\Omega$-Ants the blackboard is the coordination point and the agents exist to fill it, whereas here the shared tables are passive and coordination happens through a broadcast, so an agent is added by subscribing rather than by registration with a scheduler. $\Omega$-Ants agents also suggest the next command to a proof planner, whereas $\mathcal{SA}$ and $\mathcal{MA}$ never direct the search: one publishes hints that workers may ignore, the other answers a question the search did not ask.
 
 ## The Suggestion Agent
 
@@ -88,7 +88,7 @@ end)
 
 ## The Model Agent
 
-$\mathcal{MA}$ inverts the question. $\mathcal{CA}$ collects evidence towards a global pre-unifier $\Theta$ closing every branch, while $\mathcal{MA}$ takes a single branch that has stopped producing rules and asks an external tool whether it describes a model. A `:sat` verdict on any branch ends the session, because one satisfiable branch witnesses satisfiability of the whole input.
+$\mathcal{MA}$ inverts the question. $\mathcal{CA}$ collects evidence towards a global pre-unifier $\Theta$ closing every branch, while $\mathcal{MA}$ takes a single branch that has stopped producing rules and asks an external tool whether it describes a model. A `:sat` verdict on any branch ends the session, because one satisfiable branch witnesses satisfiability of the whole input. Consulting an external reasoner about a subproblem and integrating the verdict that comes back is the arrangement LEO-II uses for its first-order backend <a href="#chapter-references">[BSJK05, BPTF08]</a>; what differs here is that the external system is asked for a model rather than for a refutation.
 
 This is a separate agent rather than a check inside the branch because of the boundary drawn in <a href="03_tableaux.livemd">Chapter 3</a>. `model_certain?` decides an under-approximation of openness using only what the calculus can see, namely identity, bounded unifiability, and the oriented equations of $\mathcal{E}(B)$, and it reports _exhausted_ rather than open whenever extensionality would be needed to settle a pair. $\mathcal{MA}$ decides some of those exhausted branches by asking a tool that decides more than the calculus does.
 
@@ -126,6 +126,9 @@ The agent is a timer loop. Each element of it keeps an expensive external call f
 With the backend at its default, satisfiability is still reported for branches the calculus can settle by itself, and the result carries a model rather than a derivation.
 
 ````elixir
+import ShotDs.Hol.Sigils
+alias ShotTx.Prover
+
 csa = with_context ~e[p: $i > $o, a: $i, b: $i], fn ->
   ~f"(p @ a) => (p @ b)"
 end
@@ -176,6 +179,9 @@ __Definition (Derivation).__ Given the linearisations of all closed branches, th
 The conjecture <a href="06_architecture.livemd">Chapter 6</a> proved end to end can be rendered as text rather than as a diagram, which shows the numbering and the sources directly.
 
 ````elixir
+import ShotDs.Hol.Sigils
+alias ShotTx.Prover
+
 theorem = with_context ~e[p: $i > $o, a: $i], fn ->
   ~f"![X: $i]: (p @ X) => p @ a"
 end
@@ -198,12 +204,15 @@ This bears out the property claimed in <a href="06_architecture.livemd">Chapter 
 ## Chapter References
 
 * __[BN10]__ Jasmin Christian Blanchette and Tobias Nipkow. Nitpick: A counterexample generator for higher-order logic based on a relational model finder. In _Interactive Theorem Proving (ITP 2010)_, LNCS 6172, pages 131–146. Springer, 2010.
+* __[BPTF08]__ Christoph Benzmüller, Lawrence C. Paulson, Frank Theiss, and Arnaud Fietzke. LEO-II: A cooperative automatic theorem prover for classical higher-order logic (system description). In _Automated Reasoning (IJCAR 2008)_, LNCS 5195, pages 162–170. Springer, 2008.
 * __[BS98]__ Christoph Benzmüller and Volker Sorge. A blackboard architecture for guiding interactive proofs. In _Artificial Intelligence: Methodology, Systems, and Applications (AIMSA 1998)_, LNCS 1480, pages 102–114. Springer, 1998.
+* __[BSJK05]__ Christoph Benzmüller, Volker Sorge, Mateja Jamnik, and Manfred Kerber. Can a higher-order and a first-order theorem prover cooperate? In _Logic for Programming, Artificial Intelligence, and Reasoning (LPAR 2004)_, LNCS 3452, pages 415–431. Springer, 2005.
+* __[BSJK08]__ Christoph Benzmüller, Volker Sorge, Mateja Jamnik, and Manfred Kerber. Combined reasoning by automated cooperation. _Journal of Applied Logic_, 6(3):318–342, 2008.
 * __[BSW17]__ Christoph Benzmüller, Alexander Steen, and Max Wisniewski. Leo-III version 1.1 (system description). In _LPAR-21 Workshops (IWIL)_, Kalpa Publications in Computing 1, pages 11–26, 2017.
 * __[Mil87]__ Dale A. Miller. A compact representation of proofs. _Studia Logica_, 46(4):347–370, 1987.
-* __[SB21]__ Alexander Steen and Christoph Benzmüller. Extensional higher-order paramodulation in Leo-III. _Journal of Automated Reasoning_, 65(6):775–807, 2021.
 * __[Sor01]__ Volker Sorge. _$\Omega$-ANTS: A Blackboard Architecture for the Integration of Reasoning Techniques into Proof Planning_. PhD thesis, Universität des Saarlandes, Saarbrücken, 2001.
 * __[SWB16]__ Alexander Steen, Max Wisniewski, and Christoph Benzmüller. Agent-based HOL reasoning. In _Mathematical Software (ICMS 2016)_, LNCS 9725, pages 75–81. Springer, 2016.
+* __[WSB15]__ Max Wisniewski, Alexander Steen, and Christoph Benzmüller. LeoPARD: A generic platform for the implementation of higher-order reasoners. In _Intelligent Computer Mathematics (CICM 2015)_, LNCS 9150, pages 325–330. Springer, 2015.
 
 <!-- livebook:{"break_markdown":true} -->
 

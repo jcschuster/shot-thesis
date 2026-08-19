@@ -41,9 +41,11 @@ __Definition (Saturation, Openness).__ A branch is _saturated_ if no expansion r
 
 __Proposition (Tableau-Proof).__ If a tableau for $\Phi$ is closed, then $\Phi$ is unsatisfiable.
 
+_Proof._ By induction on the construction of the tableau, from the per-rule obligations collected in <a href="#soundness-and-completeness">§ Soundness and Completeness</a> and Definition (Closure), under which every branch of a closed tableau is unsatisfiable under the substitution of the closing pre-unifier. $\square$
+
 <!-- livebook:{"break_markdown":true} -->
 
-__Proposition (Tableau-Model).__ The literals of an open branch admit a Henkin model, so an open tableau for $\Phi$ witnesses satisfiability of $\Phi$.
+The converse, that an open tableau witnesses satisfiability of $\Phi$, is assumed rather than proved. An open branch is intended to describe a Henkin model, and the model-existence arguments for tableau calculi obtain one by extending a saturated open branch to a Hintikka set and reading a model off it <a href="#chapter-references">[Fit96]</a>, in the higher-order setting over the model classes of <a href="#chapter-references">[Koh95, BBK04]</a>. That argument is not carried out here, so an open tableau for $\Phi$ is treated as evidence of satisfiability and not as a proof of it. The implementation narrows the claim further, as the note below records.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -193,7 +195,7 @@ $$
 
 The remaining higher-order principle is _Boolean extensionality_ <a href="#chapter-references">[BBK04]</a>: in a Henkin model $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$, so two formulae denoting the same truth value are interchangeable in every context. A tableau built only from the rules above cannot use this. The rules decompose a formula's _logical skeleton_, but an atom $P(t)$ whose argument $t$ has type $o$ is opaque to them: $t$ sits in an argument position, no connective governs it, and no rule looks inside. Yet $t$ denotes $\mathrm{T}$ or $\mathrm{F}$, and $P(\top)$ together with $P(\bot)$ decides $P(t)$ outright.
 
-The two rules of this section are the mechanism that recovers exactly that. They work as a pair: _renaming_ moves an opaque $o$-typed argument out of the argument position and onto the branch as an equation, where the equality rules can reach it; _instantiation_ eliminates the parameter left behind by case analysis over its (finite) domain. Together they make the propositional part of a Henkin model's function space accessible to a calculus whose remaining rules act only on heads.
+The two rules of this section are the mechanism that recovers exactly that. They work as a pair: _renaming_ moves an opaque $o$-typed argument out of the argument position and onto the branch as an equation, where the equality rules can reach it; _instantiation_ eliminates the parameter left behind by case analysis over its (finite) domain. Together they make the propositional part of a Henkin model's function space accessible to a calculus whose remaining rules act only on heads. Supplying the extensionality principles as goal-directed inference rules, rather than as axioms added to the input, is the design Benzmüller and Kohlhase adopted for higher-order resolution <a href="#chapter-references">[BK98]</a> and developed in <a href="#chapter-references">[Ben99a]</a>; the two rules of this section and the equality rules of the next are its tableau counterpart.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -261,6 +263,10 @@ __Definition (Top-Level Fallback).__ If $\varphi$ has no candidate at any inner 
 > The branch count $k$ that the cost table charges for $(\mathrm{inst})$ is computed as $2^{\#_o(\tau)}$, where $\#_o$ counts the $o$-occurrences of a pure $o$-type. This agrees with $|\mathcal{D}_\tau|$ at arities $0$ and $1$ and under-estimates it above; it prices the rule and does not bound the enumeration, which is the full lazy `gen_o` stream. The whole mechanism is behind the `atom_decomposition` flag, which when off routes every atom straight to the literal set (the ablation baseline for "prover without Boolean extensionality").
 
 ## Equality Rules
+
+The rules below expand an equation at a type into statements at smaller types, until the heads that the closure test compares are reached. On the resolution side the same expansion is carried out by extensional paramodulation and RUE-resolution <a href="#chapter-references">[Ben99b]</a>, and the trade-offs between that treatment of equality and the alternatives are set out in <a href="#chapter-references">[Ben02]</a>.
+
+<!-- livebook:{"break_markdown":true} -->
 
 __Definition (Equality Expansion).__ In the spirit of Kohlhase's higher-order tableaux <a href="#chapter-references">[Koh95]</a>, we extend $\alpha$-rules to expansion rules for equality, where $\varsigma \in \mathcal{S} \setminus \{o\}$:
 
@@ -359,6 +365,8 @@ _Proof sketch._ Substitutivity of equality applied at $\pi$, with the equation $
 <!-- livebook:{"break_markdown":true} -->
 
 > Rewriting runs in both directions. A formula entering the branch is normalised against the equations already present; an equation entering the branch triggers renormalisation of the literals already present, and any literal whose form changes is discarded in favour of its normal form. Orientation is decided by the term ordering of <a href="05_term_order.livemd">Chapter 5</a>, falling back to a total heuristic extension when the two sides are incomparable, purely so that storage is deterministic.
+
+The rules of this section reach the functional principles only from a formula that is already an equation. No rule turns a pair of literals with the same rigid head and opposite polarity into an equation between their arguments, so a branch that can be separated only in that way saturates. This is the gap stated in <a href="#soundness-and-completeness">§ Soundness and Completeness</a> and measured in <a href="08_evaluation.livemd">Chapter 8</a>.
 
 ## Closure and Discharge
 
@@ -545,6 +553,12 @@ end
 |> Kino.DataTable.new(name: "BDD oracle")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```text
+[[input: "(a ∧ b) ∨ (a ∧ (¬b))", simplified: "a"], [input: "a ∨ (¬a)", simplified: "⊤"], [input: "((a ⊃ b) ∧ a) ∧ (¬b)", simplified: "⊥"], [input: "(¬(a ∧ b)) ≡ ((¬a) ∨ (¬b))", simplified: "⊤"]]
+```
+
 ## Search Bounds
 
 Three rules do not terminate on their own: $\gamma$ can be reapplied indefinitely, primitive substitution can be nested indefinitely, and pre-unification is only semi-decidable. Each is therefore bounded, and the bounds are raised together when the search saturates.
@@ -557,7 +571,29 @@ Three rules do not terminate on their own: $\gamma$ can be reapplied indefinitel
 
 > Because parking preserves rule state, deepening is not a restart. This is what makes the iterative deepening of <a href="06_architecture.livemd">Chapter 6</a> affordable: raising the limits wakes the parked rules and resumes, rather than re-deriving the branch from the input formulae.
 
-## Rule Priority
+## Soundness and Completeness
+
+Soundness is argued rule by rule rather than in one place, and the obligations are collected here. The $\alpha$, $\beta$, $\gamma$ and $\delta$ rules of <a href="#propositional-rules">§ Propositional Rules</a> and <a href="#quantifier-rules">§ Quantifier Rules</a> are the standard ones <a href="#chapter-references">[Smu68, Fit96]</a> read over the semantics of <a href="02_preliminaries.livemd">Chapter 2</a>, and each preserves satisfiability of the branch under every free-variable substitution. Primitive substitution instantiates a $\gamma$-formula and is sound for the same reason as $(\gamma)$. $(\mathrm{rename})$ and $(\mathrm{inst})$ are covered by Proposition (Boolean Extensionality), $(\mathrm{demod})$ by Propositions (Binding-Freeness), (Termination) and (Soundness), and the preprocessing of <a href="#preprocessing-and-bdds">§ Preprocessing and BDDs</a> replaces a formula by one with the same propositional abstraction, canonical by Proposition (Decision). Proposition (Tableau-Proof) assembles these.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Completeness is not established. One gap in the rule set is identified here. The extensionality rules reach the functional principles only from a formula that is already an equation: $(=\!\langle(\tau, \bar{\upsilon}) {\to} \varsigma\rangle)$ and Definition (Negative Extensionality) both act on an equality or on its negation. Two literals with the same rigid head and opposite polarity whose arguments are extensionally equal without being unifiable are therefore acted on by no rule, and a branch carrying such a pair and nothing else saturates. The rule that is absent is the one that turns such a pair into the disequation it entails.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Conjecture (Henkin Completeness).__ Let $(\mathrm{ext})$ be the branching rule
+
+$$
+\frac{\begin{gathered}P(\bar{s}_n) \\ \vdots \\ \neg P(\bar{t}_n)\end{gathered}}{\neg(s_1 =\!\langle\tau_1\rangle\; t_1) \;\mid\; \cdots \;\mid\; \neg(s_n =\!\langle\tau_n\rangle\; t_n)}(\mathrm{ext})
+$$
+
+where $P(\bar{s}_n)$ and $\neg P(\bar{t}_n)$ are literals of the branch and the head $P$ is rigid, and let $\mathcal{C}^{+}$ be the calculus of this chapter extended by $(\mathrm{ext})$. If the pre-unification bound and the bounds of <a href="#search-bounds">§ Search Bounds</a> are lifted by iterative deepening, then $\mathcal{C}^{+}$ is complete for Henkin semantics: every unsatisfiable $\Phi$ admits a closed $\mathcal{C}^{+}$-tableau.
+
+<!-- livebook:{"break_markdown":true} -->
+
+$(\mathrm{ext})$ is not part of the calculus and is not implemented. It is stated so that the conjecture quantifies over a calculus that could satisfy it: the calculus as given is expected to fail the conjecture for the reason above, and <a href="08_evaluation.livemd">Chapter 8</a> measures where the resulting boundary falls. Two obligations remain open even for $\mathcal{C}^{+}$. The interaction of demodulation with the extensionality rules is not analysed, so normalising under $\mathcal{E}(B)$ is not shown to preserve the existence of a closed tableau. The bounds are recovered one at a time by deepening and are not shown to be recoverable jointly. A proof would take the shape of the model-existence arguments of <a href="#chapter-references">[Fit96, Koh95]</a> over the model classes of <a href="#chapter-references">[BBK04]</a>.
+
+## Rule Priority and Implementation
 
 Rules are drawn from a priority queue rather than a stack, so the order in which a branch is developed is determined by a cost function rather than by the order of insertion. Lower cost means higher priority.
 
@@ -579,7 +615,7 @@ Rules are drawn from a priority queue rather than a stack, so the order in which
 
 > The table is the search heuristic. Closure is checked before anything else; linear decomposition precedes branching; the two rules that generate unbounded work ($\gamma$ and primitive substitution) are priced so that a branch is decomposed as far as possible before either fires, and $\gamma$ becomes progressively more expensive as its counter rises. Leibniz expansion is priced above extensional expansion because it introduces a quantifier over a predicate type and so feeds the most expensive rule in the table. Two named alternatives are available for ablation: a uniform cost, which degenerates the queue to insertion order, and a depth-first cost, which pushes every branching rule far back.
 
-## Rule Implementation
+<!-- livebook:{"break_markdown":true} -->
 
 Classification is a single function from a term to a rule. It is polarity-aware and takes the two parameters that change the rule assignment: whether quantification over pure $o$-types is routed to the finite $\gamma$-rule, and which equivalence expansion is used.
 
@@ -607,6 +643,7 @@ a ∧ (b ⊃ (f c))
 ------------- (:alpha)
   a
   b ⊃ (f c)
+
 ```
 
 <!-- livebook:{"output":true} -->
@@ -618,6 +655,10 @@ a ∧ (b ⊃ (f c))
 The equivalence mode changes the rule class rather than only the produced formulae:
 
 ```elixir
+import ShotDs.Hol.Sigils
+import ShotDs.Util.Formatter
+alias ShotTx.Prover.Rules
+
 equiv = ~f"a <=> b"
 
 for mode <- [:same_polarity, :bidirectional_imp] do
@@ -633,14 +674,30 @@ end
 |> Kino.DataTable.new(name: "Equivalence Strategies")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```text
+[[strategy: :same_polarity, family: :beta, produced: "a ∧ b  ;  (¬b) ∧ (¬a)"], [strategy: :bidirectional_imp, family: :alpha, produced: "a ⊃ b  ;  b ⊃ a"]]
+```
+
 The cost function is what the queue orders by, so it can be inspected directly:
 
 ```elixir
+import ShotDs.Hol.Sigils
+import ShotDs.Util.Formatter
+alias ShotTx.Prover.Rules
+
 for f <- [~f"a & b", ~f"a | b", ~f"! [X:$i] : (p @ X)"] do
   rule = Rules.classify_formula f
   [formula: format!(f), family: inspect(elem(rule, 0)), cost: Rules.rule_cost(rule)]
 end
 |> Kino.DataTable.new(name: "Costs")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[[formula: "a ∧ b", family: ":alpha", cost: 2], [formula: "a ∨ b", family: ":beta", cost: 4], [formula: "∀(λ. p 1)", family: ":gamma", cost: 3]]
 ```
 
 ## Footnotes
@@ -654,7 +711,11 @@ $^1$Consider $\varphi \lor (\psi \land \neg\varphi) \;\;\Leftrightarrow\;\; (\va
 * __[BA98]__ Matthew Bishop and Peter B. Andrews. Selectively instantiating definitions. In _Automated Deduction (CADE-15)_, LNCS 1421, pages 365–380. Springer, 1998.
 * __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
 * __[BBT+21]__ Alexander Bentkamp, Jasmin Blanchette, Sophie Tourret, Petar Vukmirović, and Uwe Waldmann. Superposition with lambdas. _Journal of Automated Reasoning_, 65(7):893–940, 2021.
+* __[Ben02]__ Christoph Benzmüller. Comparing approaches to resolution based higher-order theorem proving. _Synthese_, 133(1–2):203–335, 2002.
+* __[Ben99a]__ Christoph Benzmüller. _Equality and Extensionality in Automated Higher Order Theorem Proving_. PhD thesis, Universität des Saarlandes, Saarbrücken, 1999.
+* __[Ben99b]__ Christoph Benzmüller. Extensional higher-order paramodulation and RUE-resolution. In _Automated Deduction (CADE-16)_, LNCS 1632, pages 399–413. Springer, 1999.
 * __[BG94]__ Leo Bachmair and Harald Ganzinger. Rewrite-based equational theorem proving with selection and simplification. _Journal of Logic and Computation_, 4(3):217–247, 1994.
+* __[BK98]__ Christoph Benzmüller and Michael Kohlhase. Extensional higher-order resolution. In _Automated Deduction (CADE-15)_, LNCS 1421, pages 56–71. Springer, 1998.
 * __[BN98]__ Franz Baader and Tobias Nipkow. _Term Rewriting and All That_. Cambridge University Press, 1998.
 * __[Bry86]__ Randal E. Bryant. Graph-based algorithms for Boolean function manipulation. _IEEE Transactions on Computers_, C-35(8):677–691, 1986.
 * __[Der82]__ Nachum Dershowitz. Orderings for term-rewriting systems. _Theoretical Computer Science_, 17(3):279–301, 1982.

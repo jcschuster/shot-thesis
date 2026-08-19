@@ -6,6 +6,11 @@
 
 * __[And02]__ Peter B. Andrews. _An Introduction to Mathematical Logic and Type Theory: To Truth Through Proof_, second edition. Applied Logic Series 27. Kluwer Academic Publishers, 2002.
 * __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
+* __[Ben02]__ Christoph Benzmüller. Comparing approaches to resolution based higher-order theorem proving. _Synthese_, 133(1–2):203–335, 2002.
+* __[Ben99a]__ Christoph Benzmüller. _Equality and Extensionality in Automated Higher Order Theorem Proving_. PhD thesis, Universität des Saarlandes, Saarbrücken, 1999.
+* __[Ben99b]__ Christoph Benzmüller. Extensional higher-order paramodulation and RUE-resolution. In _Automated Deduction (CADE-16)_, LNCS 1632, pages 399–413. Springer, 1999.
+* __[BK98]__ Christoph Benzmüller and Michael Kohlhase. Extensional higher-order resolution. In _Automated Deduction (CADE-15)_, LNCS 1421, pages 56–71. Springer, 1998.
+* __[BM14]__ Christoph Benzmüller and Dale Miller. Automation of higher-order logic. In _Computational Logic_, Handbook of the History of Logic 9, pages 215–254. Elsevier, 2014.
 * __[Chu40]__ Alonzo Church. A formulation of the simple theory of types. _The Journal of Symbolic Logic_, 5(2):56–68, 1940.
 * __[dB72]__ Nicolaas G. de Bruijn. Lambda calculus notation with nameless dummies, a tool for automatic formula manipulation, with application to the Church-Rosser theorem. _Indagationes Mathematicae_, 75(5):381–392, 1972.
 * __[Hen50]__ Leon Henkin. Completeness in the theory of types. _The Journal of Symbolic Logic_, 15(2):81–91, 1950.
@@ -53,16 +58,22 @@
 * __[BN10]__ Jasmin Christian Blanchette and Tobias Nipkow. Nitpick: A counterexample generator for higher-order logic based on a relational model finder. In _Interactive Theorem Proving (ITP 2010)_, LNCS 6172, pages 131–146. Springer, 2010.
 * __[Bon00]__ Maria Paola Bonacina. A taxonomy of parallel strategies for deduction. _Annals of Mathematics and Artificial Intelligence_, 29(1):223–257, 2000.
 * __[BS98]__ Christoph Benzmüller and Volker Sorge. A blackboard architecture for guiding interactive proofs. In _Artificial Intelligence: Methodology, Systems, and Applications (AIMSA 1998)_, LNCS 1480, pages 102–114. Springer, 1998.
+* __[BSJK05]__ Christoph Benzmüller, Volker Sorge, Mateja Jamnik, and Manfred Kerber. Can a higher-order and a first-order theorem prover cooperate? In _Logic for Programming, Artificial Intelligence, and Reasoning (LPAR 2004)_, LNCS 3452, pages 415–431. Springer, 2005.
+* __[BSJK08]__ Christoph Benzmüller, Volker Sorge, Mateja Jamnik, and Manfred Kerber. Combined reasoning by automated cooperation. _Journal of Applied Logic_, 6(3):318–342, 2008.
 * __[CRD+22]__ Julie Cailler, Johann Rosain, David Delahaye, Simon Robillard, and Hinde Lilia Bouziane. Goéland: A concurrent tableau-based theorem prover (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 359–368. Springer, 2022.
 * __[Sor01]__ Volker Sorge. _$\Omega$-ANTS: A Blackboard Architecture for the Integration of Reasoning Techniques into Proof Planning_. PhD thesis, Universität des Saarlandes, Saarbrücken, 2001.
 * __[SWB16]__ Alexander Steen, Max Wisniewski, and Christoph Benzmüller. Agent-based HOL reasoning. In _Mathematical Software (ICMS 2016)_, LNCS 9725, pages 75–81. Springer, 2016.
+* __[WB16]__ Max Wisniewski and Christoph Benzmüller. Is it reasonable to employ agents in automated theorem proving? In _Agents and Artificial Intelligence (ICAART 2016)_, volume 1, pages 281–286. SCITEPRESS, 2016.
+* __[WSB15]__ Max Wisniewski, Alexander Steen, and Christoph Benzmüller. LeoPARD: A generic platform for the implementation of higher-order reasoners. In _Intelligent Computer Mathematics (CICM 2015)_, LNCS 9150, pages 325–330. Springer, 2015.
 
 ## Systems and Implementation
 
 * __[Arm03]__ Joe Armstrong. _Making Reliable Distributed Systems in the Presence of Software Errors_. PhD thesis, Royal Institute of Technology (KTH), Stockholm, 2003.
 * __[BK22]__ Chad E. Brown and Cezary Kaliszyk. Lash 1.0 (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 350–358. Springer, 2022.
+* __[BPTF08]__ Christoph Benzmüller, Lawrence C. Paulson, Frank Theiss, and Arnaud Fietzke. LEO-II: A cooperative automatic theorem prover for classical higher-order logic (system description). In _Automated Reasoning (IJCAR 2008)_, LNCS 5195, pages 162–170. Springer, 2008.
 * __[Bro12]__ Chad E. Brown. Satallax: An automatic higher-order prover. In _Automated Reasoning (IJCAR 2012)_, LNCS 7364, pages 111–117. Springer, 2012.
 * __[Bry86]__ Randal E. Bryant. Graph-based algorithms for Boolean function manipulation. _IEEE Transactions on Computers_, C-35(8):677–691, 1986.
+* __[BSPT15]__ Christoph Benzmüller, Nik Sultana, Lawrence C. Paulson, and Frank Theiss. The higher-order prover Leo-II. _Journal of Automated Reasoning_, 55(4):389–404, 2015.
 * __[BSW17]__ Christoph Benzmüller, Alexander Steen, and Max Wisniewski. Leo-III version 1.1 (system description). In _LPAR-21 Workshops (IWIL)_, Kalpa Publications in Computing 1, pages 11–26, 2017.
 * __[FC06]__ Jean-Christophe Filliâtre and Sylvain Conchon. Type-safe modular hash-consing. In _Proceedings of the 2006 Workshop on ML_, pages 12–19. ACM, 2006.
 * __[HW03]__ Gregor Hohpe and Bobby Woolf. _Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions_. Addison-Wesley, 2003.

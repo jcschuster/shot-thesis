@@ -17,15 +17,15 @@ Three results carry the chapter. The contradiction agent $\mathcal{CA}$ accounts
 
 <!-- livebook:{"break_markdown":true} -->
 
-Every figure here is scored on refutations. Countermodel answers are reported separately and are not counted as solves, for the reason given in <a href="#scoring">§ Scoring</a>: the prover infers the countermodel verdict from a syntactic test and never checks it, so a `CounterSatisfiable` answer is not attested whether or not it agrees with the TPTP status.
+Every figure here is scored on refutations. Countermodel answers are reported separately and are not counted as solves, for the reason given in <a href="#method-and-scoring">§ Method and Scoring</a>: the prover infers the countermodel verdict from a syntactic test and never checks it, so a `CounterSatisfiable` answer is not attested whether or not it agrees with the TPTP status.
 
-## Method
+## Method and Scoring
 
 The corpus is every TH0 and TH1 problem of the TPTP library <a href="#chapter-references">[Sut17]</a>, $5109$ problems in the version used here. Sixteen configurations were run over the full corpus: the baseline, one configuration per component switched off relative to it, and two numeric sweeps at three values each. Each configuration ran once, and each problem received a uniform budget of `timeout` ($2000$ ms), so a difference in solved count between two rows is attributable to the component under ablation rather than to differing time. The derived tables this chapter reads are in `files/`; the $81\,744$ per-problem records they summarise are held in the implementation repository.
 
 The sweep ran on commit `2a05f05` between 2026-08-15 and 2026-08-16, on an AMD Ryzen 7 4700U with $15$ GiB of memory under Arch Linux, where `worker_pool_size` (`:auto`) resolves to eight. The follow-up probe of <a href="#closure-search-under-the-two-pool-sizes">§ Closure Search under the Two Pool Sizes</a> ran on an AMD Ryzen 7 3700X in a container under a Linux subsystem on Windows 11 (Ubuntu), where the runtime reports sixteen online schedulers. The two pool sizes are therefore eight against one in the matrix and sixteen against one in the probe, which bears on any comparison of the two inference ratios.
 
-## Scoring
+<!-- livebook:{"break_markdown":true} -->
 
 An answer counts as a solve when it agrees with the SZS status <a href="#chapter-references">[Sut08]</a> declared in the problem file, and three conventions narrow that. Refutations only: the countermodel verdict is decided by a pairwise syntactic test over a saturated branch and is never checked, so a countermodel agreeing with the TPTP status rests on the same unvalidated predicate as one contradicting it. Countermodels are therefore reported as a separate column and excluded from the solved counts, and restricting to refutations leaves the ordering of the sixteen configurations unchanged.
 
@@ -99,6 +99,12 @@ end)
 |> Kino.DataTable.new(name: "Baseline outcomes over 5109 problems")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Outcome" => "timeout", "Problems" => 3423, "Share (%)" => 67.0}, %{"Outcome" => "thm", "Problems" => 685, "Share (%)" => 13.4}, %{"Outcome" => "parse_timeout", "Problems" => 628, "Share (%)" => 12.3}, %{"Outcome" => "parser_error", "Problems" => 221, "Share (%)" => 4.3}, %{"Outcome" => "no_conjecture", "Problems" => 77, "Share (%)" => 1.5}, %{"Outcome" => "csa", "Problems" => 62, "Share (%)" => 1.2}, %{"Outcome" => "unk", "Problems" => 8, "Share (%)" => 0.2}, %{"Outcome" => "prover_error", "Problems" => 5, "Share (%)" => 0.1}]
+```
+
 > `parse_timeout` and `parser_error` are properties of `ShotDs.Tptp` rather than of the prover: the parser never sees `%Parameters{}`, so a problem it cannot read is unreadable under every configuration. `no_conjecture` marks problems that are not attemptable as posed.
 
 <!-- livebook:{"break_markdown":true} -->
@@ -129,6 +135,12 @@ summary
   }
 end)
 |> Kino.DataTable.new(name: "Sixteen configurations, refutations and deltas against the baseline")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Configuration" => "eager_unfold_defs", "Contradicting" => 2, "Countermodels" => 61, "Delta" => 48, "Gained" => 72, "Lost" => 24, "Only solver" => 44, "Parameter" => "unfold_defs: :eager", "Refutations" => 730}, %{"Configuration" => "no_beta_variant", "Contradicting" => 1, "Countermodels" => 62, "Delta" => 21, "Gained" => 41, "Lost" => 20, "Only solver" => 16, "Parameter" => "beta_variant: false", "Refutations" => 703}, %{"Configuration" => "prim_batch_16", "Contradicting" => 1, "Countermodels" => 61, "Delta" => 3, "Gained" => 21, "Lost" => 18, "Only solver" => 2, "Parameter" => "prim_subst_batch_size: 16", "Refutations" => 685}, %{"Configuration" => "prim_batch_4", "Contradicting" => 2, "Countermodels" => 61, "Delta" => 1, "Gained" => 24, "Lost" => 23, "Only solver" => 0, "Parameter" => "prim_subst_batch_size: 4", "Refutations" => 683}, %{"Configuration" => "baseline", "Contradicting" => 1, "Countermodels" => 61, "Delta" => 0, "Gained" => 0, "Lost" => 0, "Only solver" => 3, "Parameter" => "(none)", "Refutations" => 682}, %{"Configuration" => "no_prim_subst", "Contradicting" => 1, "Countermodels" => 61, "Delta" => -1, "Gained" => 23, "Lost" => 24, "Only solver" => 2, "Parameter" => "primitive_substitution: false", "Refutations" => 681}, %{"Configuration" => "no_suggestions", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -1, "Gained" => 34, "Lost" => 35, "Only solver" => 11, "Parameter" => "suggestions_enabled: false", "Refutations" => 681}, %{"Configuration" => "serial", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -2, "Gained" => 36, "Lost" => 38, "Only solver" => 10, "Parameter" => "worker_pool_size: 1", "Refutations" => 680}, %{"Configuration" => "no_instance_based_gamma", "Contradicting" => 2, "Countermodels" => 61, "Delta" => -3, "Gained" => 16, "Lost" => 19, "Only solver" => 1, "Parameter" => "instance_based_gamma: false", "Refutations" => 679}, %{"Configuration" => "no_atom_decomposition", "Contradicting" => 3, "Countermodels" => 61, "Delta" => -12, "Gained" => 26, "Lost" => 38, "Only solver" => 3, "Parameter" => "atom_decomposition: false", "Refutations" => 670}, ...]
 ```
 
 ```elixir
@@ -200,13 +212,19 @@ Vl.new(
 |> Vl.config(view: [stroke: nil])
 ```
 
+<!-- livebook:{"output":true} -->
+
+```vega-lite
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","config":{"view":{"stroke":null}},"data":{"values":[{"configuration":"eager_unfold_defs","delta":48,"sign":"more"},{"configuration":"no_beta_variant","delta":21,"sign":"more"},{"configuration":"prim_batch_16","delta":3,"sign":"more"},{"configuration":"prim_batch_4","delta":1,"sign":"more"},{"configuration":"baseline","delta":0,"sign":"baseline"},{"configuration":"no_prim_subst","delta":-1,"sign":"fewer"},{"configuration":"no_suggestions","delta":-1,"sign":"fewer"},{"configuration":"serial","delta":-2,"sign":"fewer"},{"configuration":"no_instance_based_gamma","delta":-3,"sign":"fewer"},{"configuration":"no_atom_decomposition","delta":-12,"sign":"fewer"},{"configuration":"no_finite_o_quantification","delta":-20,"sign":"fewer"},{"configuration":"gamma_limit_3","delta":-21,"sign":"fewer"},{"configuration":"gamma_limit_5","delta":-25,"sign":"fewer"},{"configuration":"no_demodulation","delta":-41,"sign":"fewer"},{"configuration":"no_iterative_deepening","delta":-87,"sign":"fewer"}]},"height":360,"layer":[{"encoding":{"color":{"field":"sign","legend":null,"scale":{"domain":["more","baseline","fewer"],"range":["#2c5fa8","#8a939c","#b02418"]},"type":"nominal"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"refutations gained or lost"},"field":"delta","scale":{"domain":[-100,60],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"configuration","sort":["eager_unfold_defs","no_beta_variant","prim_batch_16","prim_batch_4","baseline","no_prim_subst","no_suggestions","serial","no_instance_based_gamma","no_atom_decomposition","no_finite_o_quantification","gamma_limit_3","gamma_limit_5","no_demodulation","no_iterative_deepening"],"title":null,"type":"nominal"}},"mark":{"cornerRadiusEnd":2,"height":{"band":0.65},"type":"bar"}},{"encoding":{"text":{"field":"delta","type":"quantitative"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"refutations gained or lost"},"field":"delta","scale":{"domain":[-100,60],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"configuration","sort":["eager_unfold_defs","no_beta_variant","prim_batch_16","prim_batch_4","baseline","no_prim_subst","no_suggestions","serial","no_instance_based_gamma","no_atom_decomposition","no_finite_o_quantification","gamma_limit_3","gamma_limit_5","no_demodulation","no_iterative_deepening"],"title":null,"type":"nominal"}},"mark":{"align":{"expr":"datum.delta >= 0 ? 'left' : 'right'"},"color":"#4b5563","dx":{"expr":"datum.delta >= 0 ? 4 : -4"},"fontSize":10,"type":"text"}}],"title":{"anchor":"start","fontSize":13,"subtitle":"no_contradiction_agent is off this scale at -364","subtitleColor":"#6b7280","subtitleFontSize":11,"text":"Refutations gained and lost against the baseline"},"width":460}
+```
+
 > Bars to the right of zero are configurations that solve more than the baseline. Sign is carried by the direction of the bar as well as by the colour, so the figure needs no legend. `Gained` and `Lost` in the table are set differences rather than a decomposition of the delta: a configuration can be flat overall while exchanging tens of problems in both directions, which several of them do.
 
 <!-- livebook:{"break_markdown":true} -->
 
 The size of that exchange was measured rather than inferred. The two worker-pool configurations were run three times each over the $1677$ problems on which the agent dispatches at least one closure search, at the same budget. Of the $3354$ pairs of a configuration and a problem, $84$ answered differently across three identical repeats, which is $2.5\,\%$. Estimating each problem's per-run solve probability from its three draws puts the standard deviation of one configuration's solved count at $4.0$ problems under the pool and $3.4$ serial, and the standard deviation of the difference between two independent single runs at $5.3$. A net delta inside roughly ten problems is therefore not evidence of a contribution, and the sections below support an ordering into tiers rather than a point estimate of any single delta. The exchanged problems are also not hard ones traded against easy ones: of the $38$ problems the baseline solves and the serial configuration does not, the median takes $84$ ms and none takes longer than $1497$ ms, so the exchange reflects the order in which the search reaches branches rather than the time available to it.
 
-## Ablating the Agents
+## Ablating the Agents, the Calculus and the Search Control
 
 Two of the three layers of <a href="07_extensions.livemd">Chapter 7</a> were switched here. Disabling `contradiction_agent` costs $364$ of $682$ refutations, and local ground closure alone, which is what remains when $\mathcal{CA}$ never dispatches a global search, solves $318$ problems. The result is the chapter's largest and the one the architecture predicts, since rigidity makes closure a global constraint and a prover deciding closure only locally answers a weaker question. It also fixes the reading of the other rows, because a configuration solving $318$ problems is not far enough into any search to be informative about the rules.
 
@@ -214,7 +232,7 @@ Disabling `suggestions_enabled` costs one problem, which is inside the floor. $\
 
 $\mathcal{MA}$ was not ablated. `model_agent_backend` (`:none`) held in all sixteen configurations, so the layer was inert throughout and this chapter reports nothing about it.
 
-## Ablating the Calculus
+<!-- livebook:{"break_markdown":true} -->
 
 The rules of <a href="03_tableaux.livemd">Chapter 3</a> divide into three groups by contribution. Two are substantial: removing `demodulation` costs $41$ refutations, the largest calculus effect in the matrix, losing $61$ problems while gaining $20$, and removing `atom_decomposition` costs $12$, losing $38$ against $26$ gained. The second is also the configuration with the most countermodel answers contradicting TPTP, at three, which fits the mechanism: without decomposition a branch reaches saturation earlier and the unchecked countermodel test is consulted sooner. Two more concern $o$-typed subterms: removing `finite_o_quantification` costs $20$, and removing `instance_based_gamma` costs three, which is inside the floor.
 
@@ -224,9 +242,9 @@ One rule is a net cost at this budget. Switching off `beta_variant` gains $21$ r
 
 Two numeric parameters were swept rather than switched, and both say the default is the value to keep. The initial $\gamma$-limit was run at $1$, $3$ and $5$: the default of $1$ is best by a wide margin, since $3$ costs $21$ refutations and $5$ costs $25$, and a higher initial limit fills the first deepening round with instantiations that do not contribute to a closure. The primitive substitution batch size was run at $4$, $8$ and $16$, and the three values span three problems in total, which is inside the floor. Neither parameter is worth exposing as a tuning surface, and neither was tuned here.
 
-## Ablating the Search Control
+<!-- livebook:{"break_markdown":true} -->
 
-Removing `iterative_deepening` costs $87$ refutations and loses $102$ problems against $15$ gained, which is the second largest effect in the matrix and the largest that is not an agent. The deepening schedule of <a href="03_tableaux.livemd">Chapter 3</a> is doing what it was introduced to do: the alternative, a single search at the full bound, exhausts the budget in a region of the space that contains no closure. It is also the one configuration in which the countermodel column moves, from $61$ agreeing answers to $54$, since a branch that saturates at a lower bound never reaches the state that would have closed it.
+The search control was ablated at one switch. Removing `iterative_deepening` costs $87$ refutations and loses $102$ problems against $15$ gained, which is the second largest effect in the matrix and the largest that is not an agent. The deepening schedule of <a href="03_tableaux.livemd">Chapter 3</a> is doing what it was introduced to do: the alternative, a single search at the full bound, exhausts the budget in a region of the space that contains no closure. It is also the one configuration in which the countermodel column moves, from $61$ agreeing answers to $54$, since a branch that saturates at a lower bound never reaches the state that would have closed it.
 
 The remaining search control parameter is the size of the worker pool, which the next section treats on its own.
 
@@ -248,6 +266,12 @@ end)
 |> Kino.DataTable.new(name: "worker_pool_size :auto against 1")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```text
+[[Quantity: "problems compared (budget exhausted under both)", Statistic: "count", Pool: 3383, Serial: 3383, Ratio: ""], [Quantity: "steps", Statistic: "total", Pool: 5414451, Serial: 1654858, Ratio: 3.27], [Quantity: "branches closed locally", Statistic: "total", Pool: 121798, Serial: 38853, Ratio: 3.13], [Quantity: "peak open branches", Statistic: "median", Pool: 66, Serial: 21, Ratio: 3.14], [Quantity: "global closure searches", Statistic: "total", Pool: 2469, Serial: 2115, Ratio: 1.17], [Quantity: "global closure searches per 1000 steps", Statistic: "rate", Pool: 0.46, Serial: 1.28, Ratio: 0.36], [Quantity: "problems solved by both", Statistic: "count", Pool: 705, Serial: 705, Ratio: ""], [Quantity: "wall clock on those (ms)", Statistic: "total", Pool: 61003, Serial: 77785, Ratio: 1.28]]
+```
+
 > `steps` and `branches closed locally` are worker-side counters; `global closure searches` is the number of times $\mathcal{CA}$ dispatched a search through `find_global_closure/3`. The last row is over the $705$ problems both configurations solved, where the ratio is a latency ratio rather than a throughput one.
 
 <!-- livebook:{"break_markdown":true} -->
@@ -262,7 +286,7 @@ The frontier connects those properties to the measurement: additional workers ra
 
 ## Closure Search under the Two Pool Sizes
 
-The sweep cannot separate the two accounts of that, because `TptpRunner` exports neither the time spent inside a search nor the number of checks suppressed, although `Stats` records both. A follow-up run recorded them. The two worker-pool configurations were run three times each over the $1677$ problems on which either dispatched at least one search during the sweep, at the same $2000$ ms budget, with one counter added to the clause of `check_global_closure/1` that returns when a search is already in flight, since that path previously recorded nothing. This run is on the second machine of <a href="#method">§ Method</a>, where the pool is sixteen workers rather than eight, so its ratios are read against a wider pool than the matrix's.
+The sweep cannot separate the two accounts of that, because `TptpRunner` exports neither the time spent inside a search nor the number of checks suppressed, although `Stats` records both. A follow-up run recorded them. The two worker-pool configurations were run three times each over the $1677$ problems on which either dispatched at least one search during the sweep, at the same $2000$ ms budget, with one counter added to the clause of `check_global_closure/1` that returns when a search is already in flight, since that path previously recorded nothing. This run is on the second machine of <a href="#method-and-scoring">§ Method and Scoring</a>, where the pool is sixteen workers rather than eight, so its ratios are read against a wider pool than the matrix's.
 
 ```elixir
 Ch8.Data.load("ca_probe_summary.csv")
@@ -276,6 +300,12 @@ Ch8.Data.load("ca_probe_summary.csv")
   ]
 end)
 |> Kino.DataTable.new(name: "ContradictionAgent counters, 5031 runs per configuration")
+```
+
+<!-- livebook:{"output":true} -->
+
+```text
+[[Measure: "tableau steps", Statistic: "total", Pool: 14353411, Serial: 2460501, Ratio: 5.83], [Measure: "peak open branches", Statistic: "median run", Pool: 196, Serial: 30, Ratio: 6.53], [Measure: "runs dispatching at least one search", Statistic: "count", Pool: 4826, Serial: 4442, Ratio: 1.09], [Measure: "searches dispatched", Statistic: "total", Pool: 9347, Serial: 8317, Ratio: 1.12], [Measure: "searches per 1000 steps", Statistic: "rate", Pool: 0.65, Serial: 3.38, Ratio: 0.19], [Measure: "checks skipped (no clash options)", Statistic: "total", Pool: 208292, Serial: 175057, Ratio: 1.19], [Measure: "checks suppressed (search in flight)", Statistic: "total", Pool: 5559732, Serial: 677507, Ratio: 8.21], [Measure: "suppressed per search dispatched", Statistic: "rate", Pool: 595, Serial: 81, Ratio: 7.3], [Measure: "recorded time inside search (ms)", Statistic: "total", Pool: 3997654, Serial: 4113722, Ratio: 0.97], [Measure: "share of wall clock in search (%)", Statistic: "rate", Pool: 46.5, Serial: 51.6, Ratio: 0.9], [Measure: "longest single search (ms)", Statistic: "max", Pool: 1982, Serial: 1977, Ratio: 1.0], [Measure: "branches per search", Statistic: "mean", Pool: 21.41, Serial: 10.37, Ratio: 2.06], [Measure: "candidates per search", Statistic: "mean", Pool: 996.84, Serial: 161.05, Ratio: 6.19], [Measure: "searches finding a closure (%)", Statistic: "rate", Pool: 12.4, Serial: 13.6, Ratio: 0.91], [Measure: "searches killed unfinished (%)", Statistic: "rate", Pool: 17.8, Serial: 10.8, Ratio: 1.65], [Measure: "problems solved (majority of 3 repeats)", Statistic: "count", Pool: 389, Serial: 381, Ratio: 1.02]]
 ```
 
 > The pool leaves the three quantities that determine the verdict close to unchanged: the number of searches, the time spent searching, and the number of problems closed. The quantities it does multiply describe the space each individual search has to cover.
@@ -295,6 +325,8 @@ Three changes to $\mathcal{CA}$ follow from these counters, and <a href="09_conc
 The matrix measures the prover's components against one another. It says nothing about how the prover stands against systems built on other substrates, and it does not characterise the problem classes the search decides, since the TPTP corpus is too heterogeneous for either question and $67\,\%$ of it reaches only a timeout. A second and smaller study addresses both. `ShotTx.Benchmark.HolSuite` normalises the structured higher-order problems of <a href="91_appendix_a.livemd">Appendix A</a> into $130$ self-contained THF problems, run at the prover's defaults with `timeout` ($5000$ ms), three times over the whole set, each problem in a fresh runtime since state carried between proof sessions would otherwise make a verdict depend on what ran before it. Reference verdicts for the same problem text came from Vampire 5.0.1, E 3.5.1, Zipperposition 2.1 <a href="#chapter-references">[BBT+21]</a>, Leo-III 1.8.0 <a href="#chapter-references">[SB21]</a> and Satallax 3.5 <a href="#chapter-references">[Bro12]</a> through a public submission service at a $10$ s limit on that service's hardware.
 
 ```elixir
+alias VegaLite, as: Vl
+
 coverage = Ch8.Data.load("structured_coverage.csv")
 
 coverage_order =
@@ -324,7 +356,7 @@ coverage_values =
     %{
       "prover" => row.prover,
       "definite" => row.definite,
-      "emphasis" => if(row.prover == "ShotTx", do: "ShotTx", else: "reference")
+      "emphasis" => if(row.prover == "Shot", do: "Shot", else: "reference")
     }
   end)
 
@@ -333,7 +365,7 @@ Vl.new(
   height: 200,
   title: [
     text: "Coverage on the structured problem set",
-    subtitle: "reference provers at a 10 s limit; ShotTx at 5 s",
+    subtitle: "reference provers at a 10 s limit; Shot at 5 s",
     anchor: :start,
     font_size: 13,
     subtitle_font_size: 11,
@@ -347,7 +379,7 @@ Vl.new(
   |> coverage_axes.()
   |> Vl.encode_field(:color, "emphasis",
     type: :nominal,
-    scale: [domain: ["ShotTx", "reference"], range: ["#2c5fa8", "#a9b2bb"]],
+    scale: [domain: ["Shot", "reference"], range: ["#2c5fa8", "#a9b2bb"]],
     legend: nil
   ),
   Vl.new()
@@ -356,6 +388,12 @@ Vl.new(
   |> Vl.encode_field(:text, "definite", type: :quantitative)
 ])
 |> Vl.config(view: [stroke: nil])
+```
+
+<!-- livebook:{"output":true} -->
+
+```vega-lite
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","config":{"view":{"stroke":null}},"data":{"values":[{"definite":121,"emphasis":"reference","prover":"Vampire"},{"definite":120,"emphasis":"reference","prover":"Leo-III"},{"definite":118,"emphasis":"reference","prover":"Satallax"},{"definite":116,"emphasis":"reference","prover":"E"},{"definite":112,"emphasis":"reference","prover":"Zipperposition"},{"definite":79,"emphasis":"Shot","prover":"Shot"}]},"height":200,"layer":[{"encoding":{"color":{"field":"emphasis","legend":null,"scale":{"domain":["Shot","reference"],"range":["#2c5fa8","#a9b2bb"]},"type":"nominal"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"problems given a definite answer, of 130"},"field":"definite","scale":{"domain":[0,130],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"prover","sort":["Vampire","Leo-III","Satallax","E","Zipperposition","Shot"],"title":null,"type":"nominal"}},"mark":{"cornerRadiusEnd":2,"height":{"band":0.62},"type":"bar"}},{"encoding":{"text":{"field":"definite","type":"quantitative"},"x":{"axis":{"grid":true,"gridColor":"#e5e7eb","title":"problems given a definite answer, of 130"},"field":"definite","scale":{"domain":[0,130],"nice":false},"type":"quantitative"},"y":{"axis":{"domain":false,"labelFontSize":11,"ticks":false},"field":"prover","sort":["Vampire","Leo-III","Satallax","E","Zipperposition","Shot"],"title":null,"type":"nominal"}},"mark":{"align":"left","color":"#4b5563","dx":4,"fontSize":10,"type":"text"}}],"title":{"anchor":"start","fontSize":13,"subtitle":"reference provers at a 10 s limit; Shot at 5 s","subtitleColor":"#6b7280","subtitleFontSize":11,"text":"Coverage on the structured problem set"},"width":440}
 ```
 
 The prover proved $76$ of the $130$ on all three runs and $79$ on the best of them, returned three `unknown` answers, produced no countermodel, and produced no answer contradicting the reference panel. Of the $130$, $122$ carry a `Theorem` consensus across the five reference systems, so the prover decides roughly two thirds of what the panel decides; the remaining eight are the designated non-theorems, which no reference system refutes either.
@@ -388,13 +426,19 @@ end)
 |> Kino.DataTable.new(name: "The 130 problems by the class in which they are valid")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```text
+[%{"Model class" => "M_beta", "Never proved" => 9, "Problems" => 47, "Proved on all runs" => 37, "Proved on some" => 1}, %{"Model class" => "M_beta-eta", "Never proved" => 0, "Problems" => 1, "Proved on all runs" => 1, "Proved on some" => 0}, %{"Model class" => "M_beta-b", "Never proved" => 1, "Problems" => 21, "Proved on all runs" => 19, "Proved on some" => 1}, %{"Model class" => "M_beta-eta-b", "Never proved" => 1, "Problems" => 1, "Proved on all runs" => 0, "Proved on some" => 0}, %{"Model class" => "M_beta-xi", "Never proved" => 6, "Problems" => 6, "Proved on all runs" => 0, "Proved on some" => 0}, %{"Model class" => "M_beta-xi-b", "Never proved" => 11, "Problems" => 14, "Proved on all runs" => 2, "Proved on some" => 1}, %{"Model class" => "M_beta-f", "Never proved" => 6, "Problems" => 6, "Proved on all runs" => 0, "Proved on some" => 0}, %{"Model class" => "M_beta-f-b", "Never proved" => 3, "Problems" => 9, "Proved on all runs" => 3, "Proved on some" => 3}, %{"Model class" => "property q", "Never proved" => 2, "Problems" => 3, "Proved on all runs" => 1, "Proved on some" => 0}, %{"Model class" => "signature", "Never proved" => 1, "Problems" => 13, "Proved on all runs" => 12, "Proved on some" => 0}, %{"Model class" => "non-theorem", "Never proved" => 8, "Problems" => 8, "Proved on all runs" => 0, "Proved on some" => 0}, %{"Model class" => "warm-up", "Never proved" => 0, "Problems" => 1, "Proved on all runs" => 1, "Proved on some" => 0}]
+```
+
 > The properties the prover decides are $\beta$- and $\eta$-conversion together with Boolean extensionality; the ones it does not are the two functional principles, the congruence rule for abstractions and full functional extensionality. Of the $70$ problems that are valid without either functional principle, $57$ are proved on all three runs. Of the $35$ that require one of them, five are. The class names in the table are those of <a href="91_appendix_a.livemd">Appendix A</a>, which sets out the eight classes and the property each one adds.
 
 <!-- livebook:{"break_markdown":true} -->
 
 The two pure cases are the sharpest. Example 13, extension with identity, requires the congruence rule for abstractions and nothing else; Example 14, extension of identity, requires full functional extensionality. Neither is proved in any of its six variants on any of the three runs. At the other end $\eta$ costs nothing, since terms are held in $\eta$-long $\beta$-normal form throughout, and Boolean extensionality costs little, with $19$ of the $21$ problems that need it proved.
 
-The calculus accounts for the line, and <a href="91_appendix_a.livemd">Appendix A</a> states the commitment the table measures: the renaming and instantiation rules give Boolean extensionality, the $\eta$-long $\beta$-normal representation of <a href="02_preliminaries.livemd">Chapter 2</a> gives $\eta$ without a rule firing, and the equality-expansion rules give the functional principles. That last commitment is the narrow one. An equality at a functional type expands into extensional equality, so both functional principles are available to a formula that already is an equality, and nothing in <a href="03_tableaux.livemd">Chapter 3</a> turns a rigid-headed atom pair into a disequality goal. A branch needing one of them to separate two atoms saturates rather than closing, which is what the three `unknown` answers do, while the variants of the same theorems that state the equality in the conjecture are proved in under $60$ ms.
+The calculus accounts for the line, and <a href="91_appendix_a.livemd">Appendix A</a> states the commitment the table measures: the renaming and instantiation rules give Boolean extensionality, the $\eta$-long $\beta$-normal representation of <a href="02_preliminaries.livemd">Chapter 2</a> gives $\eta$ without a rule firing, and the equality-expansion rules give the functional principles. That last commitment is the narrow one. An equality at a functional type expands into extensional equality, so both functional principles are available to a formula that already is an equality, and nothing in <a href="03_tableaux.livemd">Chapter 3</a> turns a rigid-headed atom pair into a disequality goal, which is the rule identified as absent in <a href="03_tableaux.livemd#soundness-and-completeness">§ Soundness and Completeness</a>. A branch needing one of them to separate two atoms saturates rather than closing, which is what the three `unknown` answers do, while the variants of the same theorems that state the equality in the conjecture are proved in under $60$ ms.
 
 The exceptions locate the line rather than blurring it. Of the nine problems that need functional and Boolean extensionality together, the three proved include Example 21, which states that there are exactly four functions of type $o {\to} o$ and which `finite_o_quantification` (`true`) decides by finite expansion over a pure $o$-type without any extensionality rule firing. A rule covering one class of extensionality obligation decides the examples inside its scope and leaves the rest untouched, which is the shape a rule for the congruence principle would have to take. The individual problems are not worked here: <a href="91_appendix_a.livemd">Appendix A</a> names each example, the class it belongs to and the commitment it tests, and runs it.
 

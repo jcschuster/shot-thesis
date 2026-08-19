@@ -82,8 +82,9 @@ __The performance figures measure an untuned prototype on a managed runtime.__ A
 
 The remaining limitations follow from the decisions rather than from the measurement.
 
-* Completeness is not established for the calculus as a whole, and the semantic layering of <a href="#chapter-references">[BBK04]</a> is used to state what is assumed rather than to prove what is achieved.
+* Completeness is not established. <a href="03_tableaux.livemd#soundness-and-completeness">§ Soundness and Completeness</a> of <a href="03_tableaux.livemd">Chapter 3</a> states as a conjecture what a complete extension would require and names the rule the calculus lacks, and the semantic layering of <a href="#chapter-references">[BBK04]</a> is used to state what is assumed rather than to prove what is achieved.
 * The functional principles are reachable only from a formula that is already an equality, so a branch needing one of them to separate two atoms saturates.
+* Transitivity of the term order is an open question and its soundness rests on a workshop paper <a href="#chapter-references">[NM25b]</a>, so the order is used only for pairwise orientation decisions and never as a comparator over a set; the termination argument for demodulation inherits that restriction.
 * Countermodel answers are inferred from a syntactic test and never checked, so those agreeing with the reference status are unattested as well.
 * The choice operator is absent, and the fragment is narrower than that of <a href="#chapter-references">[BB11]</a>.
 * The logic is monomorphic, so a proof requiring an instance the monomorphisation does not produce is out of reach.
@@ -94,7 +95,11 @@ The remaining limitations follow from the decisions rather than from the measure
 
 ## Future Work
 
-The global closure search comes first, since it is the one decision the measurements overturn. Three changes follow from the probe counters and are stated in <a href="08_evaluation.livemd#closure-search-under-the-two-pool-sizes">§ Closure Search under the Two Pool Sizes</a>: a per-search deadline set as a fraction of the remaining budget rather than the session deadline, retention of the most recent suppressed trigger so that it runs when the slot frees, and a bounded number of searches in flight over disjoint subsets of the open branches.
+The extensionality boundary comes first, since it is the one gap located in the calculus rather than in the search, and <a href="03_tableaux.livemd#soundness-and-completeness">§ Soundness and Completeness</a> of <a href="03_tableaux.livemd">Chapter 3</a> states the rule that would close it. Finite $o$-quantification shows the shape such a rule would take: it decides the examples inside its scope outright and leaves the rest of the class untouched. The rule to try admits the arguments of a disagreeing atom pair as an extensionality goal rather than only as a closure candidate, and the part needing care is its interaction with the binding-free discipline, since such a goal introduces a formula whose provability depends on a value the branch may not choose.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The global closure search comes second, since it is the one decision the measurements overturn. Three changes follow from the probe counters and are stated in <a href="08_evaluation.livemd#closure-search-under-the-two-pool-sizes">§ Closure Search under the Two Pool Sizes</a>: a per-search deadline set as a fraction of the remaining budget rather than the session deadline, retention of the most recent suppressed trigger so that it runs when the slot frees, and a bounded number of searches in flight over disjoint subsets of the open branches.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -102,15 +107,11 @@ Those redistribute work the agent already performs. The larger question is how t
 
 <!-- livebook:{"break_markdown":true} -->
 
-The second direction concerns the signature. $\Sigma^{\mathrm{HOL}}$ of <a href="02_preliminaries.livemd">Chapter 2</a> carries $\neg$ at $o {\to} o$ and four of the sixteen Boolean functions at $(o,o) {\to} o$, so a problem written with any of the remaining ones reaches the calculus as a composition of those five. Since a tableau performs neither clausification nor normalisation, the signature should be maximal at both types: all four functions at $o {\to} o$ and all sixteen at $(o,o) {\to} o$ as constants in their own right, each with its own rule and its own case split. Exclusive disjunction is the clearest instance. Written as $(\varphi \land \neg\psi) \lor (\neg\varphi \land \psi)$ it reaches its two branches in three rule applications through an intermediate formula in which both arguments occur twice; as a constant of its own it is one $\beta$-rule. The interpretation conditions of <a href="02_preliminaries.livemd">Chapter 2</a> extend to each added constant by its truth table, so the semantics is unchanged, the general bindings of primitive substitution <a href="#chapter-references">[And89]</a> draw from a larger head family at the same depth, and the proof object presents the connective the problem was written with.
+The third direction concerns the signature. $\Sigma^{\mathrm{HOL}}$ of <a href="02_preliminaries.livemd">Chapter 2</a> carries $\neg$ at $o {\to} o$ and four of the sixteen Boolean functions at $(o,o) {\to} o$, so a problem written with any of the remaining ones reaches the calculus as a composition of those five. Since a tableau performs neither clausification nor normalisation, the signature should be maximal at both types: all four functions at $o {\to} o$ and all sixteen at $(o,o) {\to} o$ as constants in their own right, each with its own rule and its own case split. Exclusive disjunction is the clearest instance. Written as $(\varphi \land \neg\psi) \lor (\neg\varphi \land \psi)$ it reaches its two branches in three rule applications through an intermediate formula in which both arguments occur twice; as a constant of its own it is one $\beta$-rule. The interpretation conditions of <a href="02_preliminaries.livemd">Chapter 2</a> extend to each added constant by its truth table, so the semantics is unchanged, the general bindings of primitive substitution <a href="#chapter-references">[And89]</a> draw from a larger head family at the same depth, and the proof object presents the connective the problem was written with.
 
 <!-- livebook:{"break_markdown":true} -->
 
 The preprocessing of <a href="03_tableaux.livemd">Chapter 3</a> has to be adapted for that, and as it stands works against it. The diagram readback emits $\neg$, $\land$ and $\lor$ only, under the six short-circuit identities of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>, so a formula written with $\equiv$ or with any function outside those three is returned in a normal form over them and the connective is lost where the oracle rewrites the formula. The two extreme verdicts are unaffected, since $\top$ and $\bot$ are canonical whatever the readback emits; everything in between, which is the majority of what the oracle sees, is normalised more heavily than the calculus requires. A readback over a maximal signature would recognise the node patterns of the whole family, so that the diagram $\langle v, \langle w, \bot, \top\rangle, \langle w, \top, \bot\rangle\rangle$ is returned as an exclusive disjunction of $v$ and $w$ rather than as its expansion, and canonicity is kept without discarding structure. Which of the sixteen functions are worth recognising, and whether recognition should be attempted below the root, are open questions.
-
-<!-- livebook:{"break_markdown":true} -->
-
-A third direction addresses the extensionality boundary. Finite $o$-quantification shows the shape a rule for the remaining functional principles would take: it decides the examples inside its scope outright and leaves the rest of the class untouched. The rule to try admits the arguments of a disagreeing atom pair as an extensionality goal rather than only as a closure candidate, and the part needing care is its interaction with the binding-free discipline, since such a goal introduces a formula whose provability depends on a value the branch may not choose.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -138,6 +139,7 @@ Several smaller items were named where they arose. Dual instantiation is applied
 * __[CRD+22]__ Julie Cailler, Johann Rosain, David Delahaye, Simon Robillard, and Hinde Lilia Bouziane. Goéland: A concurrent tableau-based theorem prover (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 359–368. Springer, 2022.
 * __[Gie01]__ Martin Giese. Incremental closure of free variable tableaux. In _Automated Reasoning (IJCAR 2001)_, LNCS 2083, pages 545–560. Springer, 2001.
 * __[NBTV21]__ Visa Nummelin, Alexander Bentkamp, Sophie Tourret, and Petar Vukmirović. Superposition with first-class Booleans and inprocessing clausification. In _Automated Deduction (CADE-28)_, LNCS 12699, pages 378–395. Springer, 2021.
+* __[NM25b]__ Johannes Niederhauser and Aart Middeldorp. NCPO goes $\beta\eta$-long normal form. In _Proceedings of the 20th International Workshop on Termination (WST 2025)_, Leipzig, Germany, 2025. Informal proceedings.
 
 <!-- livebook:{"break_markdown":true} -->
 

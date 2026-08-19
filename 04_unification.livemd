@@ -9,7 +9,7 @@ Mix.install([
 ])
 ```
 
-## Overview
+## The Shape of the Problem
 
 Branch closure was reduced in <a href="03_tableaux.livemd">Chapter 3</a> to a question about terms: two literals _disagree_ when one of the orientations $\{{\sim}\varphi \overset{?}{=} \psi\}$ or $\{\varphi \overset{?}{=} {\sim}\psi\}$ admits a pre-unifier. This chapter develops the procedure that answers that question. It is the term-level procedure on which the calculus rests: every conditional closure, every $\gamma$-instantiation discharged by a later substitution, and every clash reconciled globally in <a href="06_architecture.livemd">Chapter 6</a> invokes it.
 
@@ -17,7 +17,7 @@ The problem is harder than its first-order counterpart in three ways, each of wh
 
 We treat _pre-unification_ (Huet's procedure <a href="#chapter-references">[Hue75]</a>, surveyed by Dowek <a href="#chapter-references">[Dow01]</a>) as the primary object of study. Two decidable fragments, Miller patterns and second-order matching, are available as faster paths and are described only briefly at the end; they are optimisations rather than the core.
 
-## The Shape of the Problem
+<!-- livebook:{"break_markdown":true} -->
 
 The vocabulary was already fixed in <a href="02_preliminaries.livemd">Chapter 2</a>. A term is _flex_ if its head is a free variable and _rigid_ otherwise; a _unification problem_ is a finite set of equations $\mathcal{E} = \{\bar{s}_n \overset{?}{=} \bar{t}_n\}$; a _unifier_ is a free-variable substitution $\theta$ making $s_i\theta$ and $t_i\theta$ syntactically equal for every $i$. Recall also the two definitions the tableau depends on directly:
 
@@ -154,6 +154,8 @@ substitutions: [X ↦ a]; remaining flex-flex pairs: []
 Now a genuinely higher-order problem, where imitation and projection diverge. We unify $X(a) \overset{?}{=} f(a, a)$ with $X : \iota \to \iota$ flex. Imitation guesses $X \mapsto \lambda y.\, f(H_1\,y, H_2\,y)$ and recurses; projection guesses $X \mapsto \lambda y.\, y$, which fails here since $a \neq f(a,a)$, and the surviving imitation line further resolves the holes. Several pre-unifiers result, corresponding to the different ways the single argument $a$ can be threaded through $f$.
 
 ```elixir
+import ShotDs.Hol.Sigils
+
 higher_order = with_context ~e[X: $i>$i, f: $i>$i>$i, a: $i], fn ->
   {~g[X @ a], ~g[f @ a @ a]}
 end
@@ -196,8 +198,6 @@ disagree?
 true
 ```
 
-## Visualising the Search
-
 Every entry point accepts `vis: true`, which materialises the search eagerly and returns a `ShotUn.Trace` alongside the solutions. The trace is pruned to the paths that reach a solution, so failed imitation/projection lines are dropped before rendering. `ShotUn.Trace.Mermaid.render/2` emits a Mermaid `graph TD` with each node's rule, remaining work-list, accumulated $\theta$ and deferred $C$ typeset as LaTeX.
 
 ```elixir
@@ -208,15 +208,64 @@ trace
 |> Kino.Mermaid.new
 ```
 
+<!-- livebook:{"output":true} -->
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#999999', 'edgeLabelBackground': '#ffffff', 'fontFamily': 'sans-serif'}}}%%
+graph TD;
+  classDef start fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1,rx:8px,ry:8px;
+  classDef step fill:#eeeeee,stroke:#999999,stroke-width:2px,color:#333333,rx:8px,ry:8px;
+  classDef solution fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20,rx:8px,ry:8px;
+  classDef fail fill:#fff3e0,stroke:#cc5500,stroke-width:2px,color:#000000,rx:8px,ry:8px;
+  N0["$$\begin{aligned}&\text{(0)}\;\text{init}\\\\&\bullet\,{X\,\mathrm{a}}=^?{\mathrm{f}\,\mathrm{a}\,\mathrm{a}}\end{aligned}$$"]:::start;
+  N1["$$\begin{aligned}&\text{(1)}\;\text{imitation}\\\\&[X \mapsto \lambda X.\,\mathrm{f}\,(H^{1}\,X)\,(H^{2}\,X)]\\\\&\bullet\,{\mathrm{f}\,(H^{1}\,\mathrm{a})\,(H^{2}\,\mathrm{a})}=^?{\mathrm{f}\,\mathrm{a}\,\mathrm{a}}\end{aligned}$$"]:::step;
+  N3["$$\begin{aligned}&\text{(3)}\;\text{decompose}\;\text{(const)}\\\\&f\\\\&\bullet\,{H^{1}\,\mathrm{a}}=^?{\mathrm{a}}\\\\&\bullet\,{H^{2}\,\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N4["$$\begin{aligned}&\text{(4)}\;\text{imitation}\\\\&[H^{1} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\\\\&\bullet\,{H^{2}\,\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N6["$$\begin{aligned}&\text{(6)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\bullet\,{H^{2}\,\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N7["$$\begin{aligned}&\text{(7)}\;\text{imitation}\\\\&[H^{2} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N9["$$\begin{aligned}&\text{(9)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\text{(no}\;\text{pending}\;\text{pairs)}\end{aligned}$$"]:::step;
+  N10["$$\begin{aligned}&\text{(10)}\;\text{★}\;\text{solution}\\\\&\bullet\,[H^{2} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,[H^{1} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,[X \mapsto \lambda X.\,\mathrm{f}\,\mathrm{a}\,\mathrm{a}]\end{aligned}$$"]:::solution;
+  N8["$$\begin{aligned}&\text{(8)}\;\text{projection}\\\\&[H^{2} \mapsto \lambda X.\,X]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N11["$$\begin{aligned}&\text{(11)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\text{(no}\;\text{pending}\;\text{pairs)}\end{aligned}$$"]:::step;
+  N12["$$\begin{aligned}&\text{(12)}\;\text{★}\;\text{solution}\\\\&\bullet\,[H^{2} \mapsto \lambda X.\,X]\\\\&\bullet\,[H^{1} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,[X \mapsto \lambda X.\,\mathrm{f}\,\mathrm{a}\,X]\end{aligned}$$"]:::solution;
+  N5["$$\begin{aligned}&\text{(5)}\;\text{projection}\\\\&[H^{1} \mapsto \lambda X.\,X]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\\\\&\bullet\,{H^{2}\,\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N13["$$\begin{aligned}&\text{(13)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\bullet\,{H^{2}\,\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N14["$$\begin{aligned}&\text{(14)}\;\text{imitation}\\\\&[H^{2} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N16["$$\begin{aligned}&\text{(16)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\text{(no}\;\text{pending}\;\text{pairs)}\end{aligned}$$"]:::step;
+  N17["$$\begin{aligned}&\text{(17)}\;\text{★}\;\text{solution}\\\\&\bullet\,[H^{2} \mapsto \lambda X.\,\mathrm{a}]\\\\&\bullet\,[H^{1} \mapsto \lambda X.\,X]\\\\&\bullet\,[X \mapsto \lambda X.\,\mathrm{f}\,X\,\mathrm{a}]\end{aligned}$$"]:::solution;
+  N15["$$\begin{aligned}&\text{(15)}\;\text{projection}\\\\&[H^{2} \mapsto \lambda X.\,X]\\\\&\bullet\,{\mathrm{a}}=^?{\mathrm{a}}\end{aligned}$$"]:::step;
+  N18["$$\begin{aligned}&\text{(18)}\;\text{trivial}\\\\&\mathrm{a}\\\\&\text{(no}\;\text{pending}\;\text{pairs)}\end{aligned}$$"]:::step;
+  N19["$$\begin{aligned}&\text{(19)}\;\text{★}\;\text{solution}\\\\&\bullet\,[H^{2} \mapsto \lambda X.\,X]\\\\&\bullet\,[H^{1} \mapsto \lambda X.\,X]\\\\&\bullet\,[X \mapsto \lambda X.\,\mathrm{f}\,X\,X]\end{aligned}$$"]:::solution;
+  N0 -.-> N1;
+  N1 -.-> N3;
+  N3 ==> N4;
+  N4 -.-> N6;
+  N6 ==> N7;
+  N7 -.-> N9;
+  N9 -.-> N10;
+  N6 ==> N8;
+  N8 -.-> N11;
+  N11 -.-> N12;
+  N3 ==> N5;
+  N5 -.-> N13;
+  N13 ==> N14;
+  N14 -.-> N16;
+  N16 -.-> N17;
+  N13 ==> N15;
+  N15 -.-> N18;
+  N18 -.-> N19;
+
+```
+
 > _Renders on run: the root is the initial equation $X(a) \overset{?}{=} f(a,a)$; the first fan-out is the general-binding branch (imitation of $f$ against the two projections of $a$); each surviving path descends through decomposition and bare-variable binds to a `:solution` leaf carrying its pre-unifier. Depth-exhausted and rigid-clash leaves are pruned out by `prune_to_solutions/1`._
 
-## Depth and Completeness
+## Depth, Completeness and Decidable Fragments
 
 The budget makes the procedure terminating but incomplete: a pre-unifier that only appears past the current depth is missed. The incompleteness is a consequence of the problem's semi-decidability rather than a parameter to be tuned away. The tableau's response, developed in <a href="03_tableaux.livemd">Chapter 3</a>'s search bounds and <a href="06_architecture.livemd">Chapter 6</a>'s iterative deepening, is to _raise_ the budget when the search saturates and resume, rather than to fix a single depth. Because the parked $\gamma$- and primitive-substitution rules preserve their state across deepening, the extra unification depth is applied where it was previously exhausted, not from scratch.
 
 Two properties make the bound well-behaved. Decomposition and deferral are free, so a problem consisting entirely of first-order structure and flex-flex pairs is solved at any positive depth; only genuine flex-rigid guessing consumes budget. The occurs-check on the bare-variable bind guarantees that the non-branching path always terminates, so raising the budget can only add solutions, never diverge on the ones already found.
 
-## Decidable Fragments (Sidenote)
+<!-- livebook:{"break_markdown":true} -->
 
 Two special cases sidestep the search entirely and `ShotUn` routes to them when a problem qualifies (via `ShotUn.Fragment` and the `strategy: :auto` option). They are performance paths layered over the general procedure, not part of the calculus, and the tableau's soundness does not depend on them.
 
