@@ -4,8 +4,8 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, github: "jcschuster/ShotTx"},
-  {:shot_to, "~> 0.2"},
+  {:shot_tx, "0.1.0"},
+  {:shot_to, "0.2.0"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -246,7 +246,7 @@ With $=$ above the connectives the encoding introduces, the pair is oriented lef
 
 ## No Transitivity: One Pair at a Time
 
-An important caveat, because it shapes how the prover is allowed to use the order: __NCPO-LNF is not (yet known to be) transitive.__ It is well-founded and stable, the two properties a _reduction_ order needs, but transitivity is an open question. The practical consequence is sharp: the order may be used to decide the orientation of _one pair at a time_, but must not be used as a comparator to sort a list of terms or to build a total order over a set, because sorting silently assumes transitivity. `ShotTo`'s public surface reflects this: it offers `gt?/3`, `geq?/3`, and a four-valued `compare/3`, but no `sort` and no claim of a total order.
+An important caveat, because it shapes how the prover is allowed to use the order: __NCPO-LNF is not (yet known to be) transitive__ <a href="#chapter-references">[NM25a]</a>. It is well-founded and stable, the two properties a _reduction_ order needs, but transitivity is an open question. The practical consequence is sharp: the order may be used to decide the orientation of _one pair at a time_, but must not be used as a comparator to sort a list of terms or to build a total order over a set, because sorting silently assumes transitivity. `ShotTo`'s public surface reflects this: it offers `gt?/3`, `geq?/3`, and a four-valued `compare/3`, but no `sort` and no claim of a total order.
 
 The limitation is a property of the order and cannot be avoided by the prover. What the prover _can_ do is confine every use to pairwise orientation decisions, which is all demodulation and connective normalisation actually require. The next section is how that confinement is arranged.
 
@@ -350,4 +350,4 @@ Why the stability property is required rather than incidental is shown in <a hre
 
 ---
 
-Previous: <a href="04_unification.livemd">Chapter 4: Higher-Order Unification</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="06_architecture.livemd">Chapter 6: A Concurrent Actor-Based Architecture</a>
+Previous: <a href="04_unification.livemd">Chapter 4: Higher-Order Unification</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="06_architecture.livemd">Chapter 6: A Concurrent Actor-Based Architecture</a>

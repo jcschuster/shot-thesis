@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, github: "jcschuster/ShotTx"},
+  {:shot_tx, "0.1.0"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -179,7 +179,7 @@ The rule below instantiates the matrix of a $\gamma$-rule with _general bindings
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Primitive Substitution).__ Let $\Phi$ be the matrix of a $\gamma$-rule whose variable type is an $o$-type in the sense of <a href="02_preliminaries.livemd">Chapter 2</a>, that is, a type of goal $o$ with arbitrary argument types. A _general binding_ for argument types $\bar{\alpha}$ is a term $\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\bar{n}), \dots, H_k(\bar{n}))$ where $\bar{H}_k$ are fresh free variables and $\mathcal{H}$ is drawn from a family of admissible heads. The _primitive substitution_ rule instantiates $\Phi$ with each general binding in turn:
+__Definition (Primitive Substitution).__ Let $\Phi$ be the matrix of a $\gamma$-rule whose variable type is an $o$-type in the sense of <a href="02_preliminaries.livemd">Chapter 2</a>, that is, a type of goal $o$ with arbitrary argument types. A _general binding_ for argument types $\bar{\alpha}$ is a term $\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\overleftarrow{n}), \dots, H_k(\overleftarrow{n}))$ where $\bar{H}_k$ are fresh free variables and $\mathcal{H}$ is drawn from a family of admissible heads. The _primitive substitution_ rule instantiates $\Phi$ with each general binding in turn:
 
 $$
 \frac{\forall \tau.\, \Phi}{\Phi(G_1) \mid \dots \mid \Phi(G_j)}(\mathrm{prim})
@@ -187,7 +187,7 @@ $$
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Three head families are generated. The _propositional_ family fixes a logical connective: $\top$, $\bot$, $\neg H$, and the four binary connectives over two holes; at depth $\geq 2$ it is extended with five composed forms such as $\neg(H_1 \land H_2)$ and $\neg H_1 \land H_2$. The _polymorphic_ family fixes $=\!\langle\tau\rangle$ over the branch's type universe, extended at depth $\geq 2$ with composed equality heads and with $\forall$/$\exists$ heads, which are ordered last so proof search reaches them late. The _unit-set_ family produces $\lambda \bar{\tau}_n.\, (H(\bar{n})) =\!\langle\tau\rangle\; c$ for each parameter $c$ on the branch. The $H$ holes are created in the global term pool rather than in a scratchpad, because a unifier found later must be traceable to the rule that introduced them.
+> Three head families are generated. The _propositional_ family fixes a logical connective: $\top$, $\bot$, $\neg H$, and the four binary connectives over two holes; at depth $\geq 2$ it is extended with five composed forms such as $\neg(H_1 \land H_2)$ and $\neg H_1 \land H_2$. The _polymorphic_ family fixes $=\!\langle\tau\rangle$ over the branch's type universe, extended at depth $\geq 2$ with composed equality heads and with $\forall$/$\exists$ heads, which are ordered last so proof search reaches them late. The _unit-set_ family produces $\lambda \bar{\tau}_n.\, (H(\overleftarrow{n})) =\!\langle\tau\rangle\; c$ for each parameter $c$ on the branch. The $H$ holes are created in the global term pool rather than in a scratchpad, because a unifier found later must be traceable to the rule that introduced them.
 
 ## Boolean Extensionality: Renaming and Instantiation
 
@@ -232,11 +232,17 @@ and the $j$-th branch additionally records the definition $c := b_j$, so every l
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Proposition (Boolean Extensionality).__ The two rules are sound and jointly complete for the propositional fragment of the function space:
+__Proposition (Boolean Extensionality).__ $(\mathrm{rename})$ and $(\mathrm{inst})$ are sound, and composed they reduce an occurrence of an opaque $o$-typed argument $t$ to a finite case split over $\mathcal{D}_\tau$.
 
-1. _(rename)_ is sound because $c$ is fresh, so $\varphi \equiv \exists \tau.\, (\varphi[1]_\pi \land 1 = t)$ holds in every Henkin model, and the $\delta$-style witness is $t$ itself.
-2. _(inst)_ is sound because $\mathrm{gen}(\tau)$ exhausts $\mathcal{D}_\tau$, so the disjunction of the $k$ conclusions is entailed by the premise, and complete for $c$ because no element of $\mathcal{D}_\tau$ is omitted.
-3. Composed, they reduce any occurrence of an opaque $o$-typed argument $t$ to a finite case split over $\mathcal{D}_\tau$: renaming replaces $t$ by a parameter and produces $c =\!\langle\tau\rangle\; t$, which the equality rules expand to $c \equiv t$ at type $o$ (and pointwise above it), placing $t$ under the propositional rules; instantiation then discharges $c$ by case analysis. This is the syntactic content of $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$.
+_Proof._
+
+1. $(\mathrm{rename})$ is sound because $c$ is fresh, so $\varphi \equiv \exists \tau.\, (\varphi[1]_\pi \land 1 = t)$ holds in every Henkin model, and the $\delta$-style witness is $t$ itself.
+2. $(\mathrm{inst})$ is sound because $\mathrm{gen}(\tau)$ exhausts $\mathcal{D}_\tau$, so the disjunction of the $k$ conclusions is entailed by the premise, and the case analysis on $c$ is exhaustive because no element of $\mathcal{D}_\tau$ is omitted.
+3. Renaming replaces $t$ by a parameter and produces $c =\!\langle\tau\rangle\; t$, which the equality rules expand to $c \equiv t$ at type $o$ (and pointwise above it), placing $t$ under the propositional rules; instantiation then discharges $c$ by case analysis over $\mathrm{gen}(\tau)$. This is the syntactic content of $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$. $\square$
+
+<!-- livebook:{"break_markdown":true} -->
+
+Joint completeness for the propositional fragment of the function space is not claimed. The rules fire only on atoms with a rigid head and only at argument positions satisfying (C1) to (C3); no argument is given here that every occurrence a refutation requires is reachable under those restrictions.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -506,7 +512,9 @@ $$
 
 <!-- livebook:{"break_markdown":true} -->
 
-__Proposition (Decision).__ Because the diagram is reduced and ordered under a fixed variable order, it is a canonical form for the propositional abstraction of $\varphi$. In particular $\varphi$ is a propositional tautology iff its diagram is $\top$, propositionally unsatisfiable iff its diagram is $\bot$, and two formulae are propositionally equivalent iff their diagrams are identical.
+__Proposition (Decision).__ Under a fixed variable order the reduced ordered diagram is a canonical form for the propositional abstraction of $\varphi$. In particular $\varphi$ is a propositional tautology iff its diagram is $\top$, propositionally unsatisfiable iff its diagram is $\bot$, and two formulae are propositionally equivalent iff their diagrams are identical.
+
+_Proof._ Canonicity of reduced ordered diagrams under a fixed variable order is due to Bryant <a href="#chapter-references">[Bry86]</a>. A diagram denotes the Boolean function obtained by reading $\langle v, h, l\rangle$ as above, and the construction preserves that denotation, so the diagram of $\varphi$ denotes the propositional abstraction of $\varphi$. The constant functions $\mathrm{T}$ and $\mathrm{F}$ have the diagrams $\top$ and $\bot$, which by canonicity are the diagrams of exactly the tautologies and of exactly the unsatisfiable formulae, and identity of canonical forms is identity of the denoted functions. $\square$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -661,4 +669,4 @@ $^1$Consider $\varphi \lor (\psi \land \neg\varphi) \;\;\Leftrightarrow\;\; (\va
 
 ---
 
-Previous: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="04_unification.livemd">Chapter 4: Higher-Order Unification</a>
+Previous: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="04_unification.livemd">Chapter 4: Higher-Order Unification</a>

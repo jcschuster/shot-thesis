@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_ds, "~> 1.3.1"},
+  {:shot_ds, "1.3.1"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -12,6 +12,12 @@ Mix.install([
 ## Notation
 
 We abbreviate a sequence $a_1, \dots, a_n$ by $\bar{a}_n$ where $n \geq 0$, write $()$ for the empty sequence, and write $\bar{a}, \bar{b}$ for concatenation. We drop the length subscript and write $\bar{a}$ when it is irrelevant or clear from context, and write $|\bar{a}|$ for the length of $\bar{a}$. $\bar{n}$ is the sequence $1,\dots,n$ and $\{\bar{a}\}$ is the set $\{a_1, \dots, a_n\}$. The reverse of a sequence $\bar{a}_n$ is denoted $\overleftarrow{a}_n$. We denote the sequence $a_i,\dots,a_j$ by $\bar{a}_{i..j}$ which we identify with $()$ when $i \ge j$.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> _Under $\lambda \bar{\tau}_n$, index $n + 1 - i$ denotes $\tau_i$, so a head applied to its own binders takes $\overleftarrow{n}$._
+
+<!-- livebook:{"break_markdown":true} -->
 
 Relations and functions on sequences are interpreted pointwise, so $\bar{a}_n \mathrel{R} \bar{b}_n$ stands for $a_1 \mathrel{R} b_1, \dots, a_n \mathrel{R} b_n$ and $f(\bar{a}_n)$ for $f(a_1),\dots,f(a_n)$.
 
@@ -32,9 +38,9 @@ import ShotDs.Hol.Sigils
 Kino.nothing
 ```
 
-## Church's Simple Theory of Types
+## Types
 
-Simple Type Theory (STT), in the formulation of Church <a href="#chapter-references">[Chu40]</a>, is a language of _terms_ and defines the semantics of the transformation of higher-order terms. It defines computation on a single reduction principle, $\beta$-reduction. An efficient implementation of STT is hence most relevant for the performance of a prover for higher-order logic.
+Simple Type Theory (STT), in the formulation of Church <a href="#chapter-references">[Chu40]</a>, is a language of _terms_ and defines the semantics of the transformation of higher-order terms. It defines computation on a single reduction principle, $\beta$-reduction. An efficient implementation of STT is hence most relevant for the performance of a prover for higher-order logic. Its type layer is fixed in this section and its term layer in the sections that follow.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -45,6 +51,8 @@ Let $\mathcal{S} = \{\iota, o\}$ be the set of _sorts_ and let $\mathcal{A}$ be 
 
 __Proposition (Canonical Decomposition).__
 Every $\tau \in \mathcal{T}$ is of the form $\bar{\tau}_n {\to} \varsigma$ for a unique $n \geq 0$, a unique sequence $\bar{\tau}_n$ and a unique $\varsigma \in \mathcal{B}$.
+
+_Proof._ The type grammar has a single production, whose goal component is required to lie in $\mathcal{B}$, so a type is an argument sequence paired with a base type and $n$ is the length of that sequence. Distinct pairs are distinct types, and the identification of $() {\to} \varsigma$ with $\varsigma$ places each base type at $n = 0$ rather than giving it a second decomposition. $\square$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -58,6 +66,8 @@ __Definition ($o$-Type, Pure $o$-Type).__ A type $\tau$ is an _$o$-type_ if $\op
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition ($o$-Types and Pure $o$-Types).__ Every pure $o$-type is an $o$-type, and the inclusion is strict: $\iota {\to} o$ is an $o$-type and is not pure.
+
+_Proof._ Induction on membership in $\mathcal{O}$: both clauses produce a type whose goal is $o$. For strictness, $\operatorname{gl}(\iota {\to} o) = o$, so $\iota {\to} o$ is an $o$-type, and it lies in $\mathcal{O}$ only if $\iota$ does, whereas every element of $\mathcal{O}$ has goal $o$ and $\operatorname{gl}(\iota) = \iota$. $\square$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -80,6 +90,8 @@ We write $[\bar{\alpha}_n \mapsto \bar{\rho}_n]$ for the substitution mapping $\
 
 __Proposition (Instantiation and Arity).__
 $\operatorname{ar}(\tau[\vartheta]) \geq \operatorname{ar}(\tau)$, with equality if and only if $\operatorname{gl}(\tau)[\vartheta] \in \mathcal{B}$.
+
+_Proof._ Write $\tau = \bar{\tau}_n {\to} \varsigma$ by Canonical Decomposition, so that $\operatorname{ar}(\tau) = n$ and $\operatorname{gl}(\tau) = \varsigma$. The substitution clause appends the argument sequence of $\varsigma[\vartheta]$ to $\bar{\tau}_n[\vartheta]$, giving $\operatorname{ar}(\tau[\vartheta]) = n + \operatorname{ar}(\varsigma[\vartheta])$, and the same identity holds at $n = 0$, where $\tau[\vartheta] = \varsigma[\vartheta]$. Arities are non-negative, which gives the inequality, and equality holds exactly when $\operatorname{ar}(\varsigma[\vartheta]) = 0$, by Canonical Decomposition exactly when $\varsigma[\vartheta] \in \mathcal{B}$. $\square$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -127,9 +139,7 @@ Kino.nothing
 ~t| $i > ($i > $o) > $o | |> Kino.Tree.new
 ```
 
----
-
-<!-- livebook:{"break_markdown":true} -->
+## Signatures and Variables
 
 __Definition (Signature).__
 A _signature_ $\Sigma$ is a finite set of declarations $c : \sigma$ with $\sigma \in \mathfrak{T}$, in which every constant symbol $c$ is declared at most once.
@@ -139,7 +149,7 @@ A _signature_ $\Sigma$ is a finite set of declarations $c : \sigma$ with $\sigma
 __Definition (Free Variable, Parameter).__
 Let $\mathcal{V} = \biguplus_{\tau \in \mathcal{T}} \mathcal{V}_\tau$ and $\mathcal{P} = \biguplus_{\tau \in \mathcal{T}} \mathcal{P}_\tau$ be families of countably infinite, pairwise disjoint sets with $\mathcal{V} \cap \mathcal{P} = \emptyset$. Elements of $\mathcal{V}$ are _free variables_ ($X, Y$); elements of $\mathcal{P}$ are _parameters_ ($p, q$).
 
-<!-- livebook:{"break_markdown":true} -->
+## Terms
 
 __Definition (Term).__
 Given a signature $\Sigma$, the set of _terms_ $\Lambda(\Sigma)$ ($s$, $t$, $u$, $v$) is defined by
@@ -311,6 +321,8 @@ end
 Kino.nothing
 ```
 
+## Typing
+
 __Definition (Context).__
 A _context_ $\Gamma$ is a finite sequence of types $\bar{\tau}$, listed from outermost to innermost binding. Lookup $\Gamma(i)$ is defined by
 
@@ -346,7 +358,9 @@ A term $t$ is _well-typed in $\Gamma$_ if $\Gamma \vdash t : \tau$ holds for som
 __Proposition (Unique Typing).__
 If $\Gamma \vdash t : \tau$ and $\Gamma \vdash t : \tau'$, then $\tau = \tau'$.
 
-<!-- livebook:{"break_markdown":true} -->
+_Proof._ Induction on $t$. Each typing rule is determined by the shape of $t$, so at most one applies to a given term. For a head the conclusion is read off data fixed independently of the derivation: the signature entry together with the type arguments for $c\langle \bar{\rho}_n \rangle$, the type index of $\mathcal{V}$ or $\mathcal{P}$ for $X$ and $p$, and the context lookup for $i$. For $\lambda \bar{\tau}.\, t$ and $s(\bar{t}_n)$ the conclusion is a function of the premise types, unique by the induction hypothesis, and of the split of the premise type into arguments and goal, unique by Canonical Decomposition. $\square$
+
+## Shifting and Substitution
 
 __Definition (Shifting).__
 For $d \geq 0$ and cutoff $k \geq 0$, the _shift_ $t \uparrow^{d}_{k}$ is defined by
@@ -391,7 +405,7 @@ together with $(s(\bar{t}))\theta_k = (s\theta_k)(\bar{t}\theta_k)$, and with co
 
 > Shifting and substitution are efficiently implemented on top of the `map_term` combinator. Both make use of the `env` field to store the current index depth and use a term's `max_num` and `fvars` fields to skip unnecessary recursive calls (as `short_circuit`).
 
-<!-- livebook:{"break_markdown":true} -->
+## Reduction and Normal Forms
 
 __Definition ($\beta$-Reduction).__ 
 $(\lambda \bar{\tau}_n.\, t)(\bar{u}_n, \bar{v}_m) \;\longrightarrow_\beta\; t[\bar{u}_n](\bar{v}_m)$
@@ -410,7 +424,7 @@ A well-typed term $t$ with $\Gamma \vdash t : \tau$ is in _$\eta$-long $\beta$-n
 
 > The internals of the `TermFactory` and `Semantics` API ensure terms to always be well-typed and in $\eta$-long $\beta$-normal form.
 
-<!-- livebook:{"break_markdown":true} -->
+## Parameter Terms
 
 __Definition (Parameter Term).__
 Let $\bar{X} \in \mathcal{V}$ be pairwise distinct with $\bar{X} \in \mathcal{V}_{\bar{\tau}}$, and let $p \in \mathcal{P}_{(\bar{\tau}, \bar{\upsilon}_n) \to \varsigma}$. The _parameter term_ of $p$ over $\bar{X}$ is
@@ -426,15 +440,13 @@ We call $\bar{X}$ the _dependencies_ of $p\{\bar{X}\}$, and $p$ _fresh_ for a se
 __Proposition (Parameter Term).__
 $\Gamma \vdash p\{\bar{X}\} : \bar{\upsilon} {\to} \varsigma$, and $p\{\bar{X}\}$ is in $\eta$-long $\beta$-normal form.
 
+_Proof._ Under the context $\Gamma, \bar{\upsilon}_n$ the parameter rule gives $p : (\bar{\tau}, \bar{\upsilon}_n) {\to} \varsigma$, the variable rule gives $X_i : \tau_i$, and lookup gives the reversed indices $\overleftarrow{n}$ the types $\bar{\upsilon}_n$, the context being listed outermost to innermost. The application rule yields $\Gamma, \bar{\upsilon}_n \vdash p(\bar{X}, \overleftarrow{n}) : \varsigma$ and the abstraction rule $\Gamma \vdash \lambda \bar{\upsilon}_n.\, p(\bar{X}, \overleftarrow{n}) : \bar{\upsilon}_n {\to} \varsigma$. The term is in $\eta$-long $\beta$-normal form because its head is the parameter $p$, its arguments are in that form by the standing convention on terms, and the number of binders is $n = \operatorname{ar}(\bar{\upsilon}_n {\to} \varsigma)$. $\square$
+
 <!-- livebook:{"break_markdown":true} -->
 
 > A parameter is created by `make_fresh_const_term/1`, which builds a `Declaration` carrying a unique `reference` as its name at type $(\bar{\tau}_n, \bar{\upsilon}_m){\to}\varsigma$. Since `make_term/1` $\eta$-expands any declaration of arrow type on construction, the abstraction $\lambda\bar{\upsilon}_m$ is produced by the term factory rather than written by the caller; applying the result to the dependencies $\bar{X}_n$ then $\beta$-reduces the outer $n$ binders away. No shift on $\bar{X}_n$ is needed, as shifting acts as the identity on free variables. For $m = 0$ the parameter term collapses to $p(\bar{X}_n)$, and for $n = 0$ to the $\eta$-long form of $p$ itself.
 
-<!-- livebook:{"break_markdown":true} -->
-
----
-
-<!-- livebook:{"break_markdown":true} -->
+## Syntactic Equality and Unification
 
 __Definition (Syntactic Equality).__ Two terms $s$ and $t$ are _syntactically equal_ if they are the same element of $\Lambda(\Sigma)$.
 
@@ -454,9 +466,9 @@ __Definition (Pre-Unification Problem).__ A _pre-unifier_ <a href="#chapter-refe
 
 > A pre-unifier is represented as `%ShotUn.UnifSolution{substitutions: theta, flex_pairs: C}` and pre-unifiers are enumerated lazily as a stream. Flex-flex equations are always solvable, so a pre-unifier witnesses solvability of $E$ without committing to a solution for $C$.
 
-## Classical Higher-Order Logic
+## Connectives, Quantifiers and Equality
 
-Classical higher-order logic (HOL) is defined as an extension of STT and is the language we will be working with. Textbook treatments are given by Andrews <a href="#chapter-references">[And02]</a>, and the model classes lying between Henkin and standard semantics are laid out by Benzmüller, Brown and Kohlhase <a href="#chapter-references">[BBK04]</a>. For that, we consider the signature $\Sigma^{\mathrm{HOL}}$ defined as follows.
+Classical higher-order logic (HOL) is defined as an extension of STT and is the language we will be working with. Textbook treatments are given by Andrews <a href="#chapter-references">[And02]</a>, and the model classes lying between Henkin and standard semantics are laid out by Benzmüller, Brown and Kohlhase <a href="#chapter-references">[BBK04]</a>. The signature, the semantics and the notion of entailment the prover decides are fixed in this section and the four that follow it.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -489,6 +501,10 @@ ShotDs.Hol.Definitions.signature
 
 __Definition (Complement).__ The _complement_ ${\sim}\varphi$ of a formula $\varphi$ is $\chi$ if $\varphi = \neg\chi$, and $\neg\varphi$ otherwise.
 
+## Frames and Interpretations
+
+Classical HOL is typically discussed for _curried_ terms, i.e. $f(x, y)$ represented as $f~x~y$. To discuss the semantics of HOL in the notation introduced in this chapter, we borrow the notion of _sections_ from set theory. This allows us to describe _partial application_.
+
 <!-- livebook:{"break_markdown":true} -->
 
 __Definition (Frame).__ A _frame_ $\mathcal{D} = (\mathcal{D}_\tau)_{\tau \in \mathcal{T}}$ is a collection of nonempty sets $\mathcal{D}_\tau$ such that $\mathcal{D}_o = \{\mathrm{T}, \mathrm{F}\}$, each $\mathcal{D}_{\bar{\tau}_n {\to} \varsigma}$ is a set of functions mapping $\overline{\mathcal{D_{\tau_i}}}_n$ to $\mathcal{D}_\varsigma$, and the collection is closed under _sections_: for $f \in \mathcal{D}_{(\bar{\tau}_n, \bar{\upsilon}) {\to} \varsigma}$ and $\bar{a}_n \in \overline{\mathcal{D_{\tau_i}}}_n$, the section $f_{\bar{a}_n}$ given by $f_{\bar{a}_n}(\bar{b}) = f(\bar{a}_n, \bar{b})$ lies in $\mathcal{D}_{\bar{\upsilon} {\to} \varsigma}$. The frame is _standard_ if every $\mathcal{D}_{\bar{\tau}_n {\to} \varsigma}$ is the full space of such functions.
@@ -502,20 +518,20 @@ Sections are what make partial application meaningful here. Types are uncurried 
 __Definition (Interpretation).__ An _interpretation_ $\mathcal{I}$ over a frame $\mathcal{D}$ and a signature $\Sigma \supseteq \Sigma^{\mathrm{HOL}}$ maps every type instance $c\langle\bar{\rho}\rangle : \upsilon$ of a constant $c \in \Sigma$, and every parameter $p \in \mathcal{P}_\upsilon$, to an element of $\mathcal{D}_\upsilon$, subject to the conditions below on the logical constants. Each condition constrains $\mathcal{I}$ and at the same time demands of $\mathcal{D}$ that the required element be present in it.
 
 * $\mathcal{I}(\top) = \mathrm{T}$ and $\mathcal{I}(\bot) = \mathrm{F}$; $\mathcal{I}(\neg)$ maps $\mathrm{T}$ to $\mathrm{F}$ and $\mathrm{F}$ to $\mathrm{T}$; and $\mathcal{I}(\land)$, $\mathcal{I}(\lor)$, $\mathcal{I}(\supset)$, $\mathcal{I}(\equiv)$ are the corresponding Boolean functions on $\{\mathrm{T}, \mathrm{F}\}$.
-* _Equality._ For every $\tau \in \mathcal{T}$ and all $a, b \in \mathcal{D}_\tau$, $\mathcal{I}(=\!\langle\tau\rangle)(a, b) = \mathrm{T}$ if and only if $a$ and $b$ are the same element of $\mathcal{D}_\tau$.
+* _Equality._ For every $\tau \in \mathcal{T}$ and $a, b \in \mathcal{D}_\tau$, $\mathcal{I}(=\!\langle\tau\rangle)(a, b) = \mathrm{T}$ if and only if $a$ and $b$ are the same element of $\mathcal{D}_\tau$.
 * _Quantifiers._ For every $\tau \in \mathcal{T}$ and every $f \in \mathcal{D}_{\tau {\to} o}$, $\mathcal{I}(\forall\langle\tau\rangle)(f) = \mathrm{T}$ if and only if $f(a) = \mathrm{T}$ for every $a \in \mathcal{D}_\tau$, and $\mathcal{I}(\exists\langle\tau\rangle)(f) = \mathrm{T}$ if and only if $f(a) = \mathrm{T}$ for some $a \in \mathcal{D}_\tau$.
 
 <!-- livebook:{"break_markdown":true} -->
 
 Equality is fixed to identity at every type, which is the property that makes an interpretation _logical_ in the sense of Benzmüller, Brown and Kohlhase <a href="#chapter-references">[BBK04]</a>. The two extensionality principles a higher-order calculus needs are then consequences rather than stipulations, and are stated as such below; the one principle that is _not_ a consequence, Leibniz equality, is separated out with the condition it actually requires.
 
+## Denotation and Models
+
+__Definition (Variable Assignment).__ A _variable assignment_ $g$ maps every free variable $X \in \mathcal{V}_\tau$ to an element $g(X) \in \mathcal{D}_\tau$.
+
 <!-- livebook:{"break_markdown":true} -->
 
-__Definition (Variable Assignment).__ A _variable assignment_ $g$ maps each free variable $X \in \mathcal{V}_\tau$ to an element $g(X) \in \mathcal{D}_\tau$.
-
-<!-- livebook:{"break_markdown":true} -->
-
-__Definition (Denotation).__ Let $\mathcal{D}$ be a frame, $\mathcal{I}$ an interpretation over it, $\mathcal{M} = (\mathcal{D}, \mathcal{I})$ the pair, $g$ a variable assignment and $\bar{\xi}_k$ a sequence of elements of $\mathcal{D}$ valuing the outermost $k$ de Bruijn indices. The _denotation_ of a term $t : \tau$, written $[\![t]\!](\mathcal{M}, g, \bar{\xi}_k)$, is the partially defined element of $\mathcal{D}_\tau$ given by
+__Definition (Denotation).__ Let $\mathcal{D}$ be a frame, $\mathcal{I}$ an interpretation over it, $\mathcal{M}$ the pair $(\mathcal{D}, \mathcal{I})$, $g$ a variable assignment and $\bar{\xi}_k$ a sequence of elements of $\mathcal{D}$ valuing the outermost $k$ de Bruijn indices. The _denotation_ of a term $t : \tau$, written $[\![t]\!](\mathcal{M}, g, \bar{\xi}_k)$, is the partially defined element of $\mathcal{D}_\tau$ given by
 
 * $[\![c\langle\bar{\rho}\rangle]\!](\mathcal{M}, g, \bar{\xi}_k) = \mathcal{I}(c\langle\bar{\rho}\rangle)$ for constant symbols $c \in \Sigma$
 * $[\![p]\!](\mathcal{M}, g, \bar{\xi}_k) = \mathcal{I}(p)$ for parameters $p \in \mathcal{P}$
@@ -532,7 +548,7 @@ __Definition (Henkin Model, Standard Model).__ A _Henkin model_ <a href="#chapte
 
 Totality is the substantive condition in this definition. A frame may omit functions, so the demand is that it omit none whose absence would leave a term without a value; every standard model is a Henkin model, and the converse fails.
 
-<!-- livebook:{"break_markdown":true} -->
+## Extensionality and Leibniz Equality
 
 __Proposition (Boolean Extensionality).__ $\mathcal{I}(=\!\langle o \rangle) = \mathcal{I}(\equiv)$.
 
@@ -558,7 +574,7 @@ _Proof._ The first claim is substitution of identicals. The second is the defini
 
 The three propositions are what <a href="03_tableaux.livemd#equality-rules">Chapter 3</a>'s three equality-expansion rules appeal to, one each, and they do not all cost the same. Expansion at $o$ and expansion at an arrow type are sound in every Henkin model, because they restate identity in a frame whose arrow components are functions. Leibniz expansion at a base type is sound in the direction that reads an equation as agreement of all properties, and its converse direction, the one a refutation needs when it expands $\neg(s =\!\langle\varsigma\rangle\; t)$, holds only where the frame separates at $\varsigma$. Separation is therefore a condition on the model class rather than a consequence of the semantics, and the negative rule of that section is what makes it operational: it Skolemises the separating property into a fresh parameter rather than requiring the frame to supply it.
 
-<!-- livebook:{"break_markdown":true} -->
+## Satisfiability and Entailment
 
 __Definition (Satisfiability).__ A formula $\varphi$ is _satisfiable_ iff there exists a Henkin model $\mathcal{M}$ and a variable assignment $g$, such that $[\![\varphi]\!](\mathcal{M}, g, ()) = \mathrm{T}$. A set of formulae is satisfiable if all its elements are jointly satisfiable under the same Henkin model and variable assignment. Conversely, a formula (or a set of formulae) is _unsatisfiable_ if no such model and variable assignment exists.
 
@@ -593,4 +609,4 @@ The reformulation is the form the prover decides. A conjecture is refuted rather
 
 ---
 
-Previous: <a href="01_introduction.livemd">Chapter 1: Introduction</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="03_tableaux.livemd">Chapter 3: Higher-Order Tableaux</a>
+Previous: <a href="01_introduction.livemd">Chapter 1: Introduction</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="03_tableaux.livemd">Chapter 3: Higher-Order Tableaux</a>

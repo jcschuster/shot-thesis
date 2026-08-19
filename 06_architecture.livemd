@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, "~> 0.0.3"},
+  {:shot_tx, "0.1.0"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -22,6 +22,8 @@ The design follows from one fact about free-variable tableaux <a href="#chapter-
 <!-- livebook:{"break_markdown":true} -->
 
 __Proposition (Unsoundness of locality for rigid variables).__ A branch that commits to a local substitution $X \mapsto t$, using it to close itself, can render the whole search either unsound or incomplete: unsound, if a sibling branch later closes under a substitution inconsistent with $X \mapsto t$ yet the search reports success; incomplete, if the local commitment pre-emptively constrains a variable that a sibling needed to bind differently, so that a global solution which exists is never found.
+
+_Proof._ Take the split of the preceding paragraph, in which the left branch closes only under $X \mapsto a$ and the right only under $X \mapsto b$ with $a \neq b$. If each branch applies its own substitution and reports itself closed, the search reports the tableau closed although no single instance of $X$ closes both branches, so a satisfiable set is refuted. If instead the left branch's commitment is imposed on its siblings, the right branch is searched under $X \mapsto a$ alone, and a global substitution closing every branch by binding $X$ elsewhere lies outside the space searched, so a refutation that exists is not found. $\square$
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -62,7 +64,7 @@ Supervisor.init(children, strategy: :rest_for_one)
 <!-- livebook:{"output_size":"full"} -->
 
 ```elixir
-Kino.Mermaid.new("""
+Kino.Mermaid.new """
 graph TD
   SS["SessionSupervisor<br/>(:rest_for_one)"]
   EK["EtsKeeper<br/>owns session tables"]
@@ -93,43 +95,7 @@ graph TD
   class EK keeper;
   class CA,SA,MA agent;
   class W1,W2,WN worker;
-""")
-```
-
-<!-- livebook:{"output":true} -->
-
-```mermaid
-graph TD
-  SS["SessionSupervisor<br/>(:rest_for_one)"]
-  EK["EtsKeeper<br/>owns session tables"]
-  TS["Task.Supervisor<br/>async CSP dispatches"]
-  MG["Manager<br/>orchestration + deepening"]
-  CA["ContradictionAgent<br/>global closure (CSP)"]
-  SA["SuggestionAgent<br/>heuristic hints (opt-out)"]
-  MA["ModelAgent<br/>satisfiability probes (opt-in)"]
-  BS["DynamicSupervisor<br/>worker pool"]
-  W1["Worker 1"]
-  W2["Worker 2"]
-  WN["Worker N"]
-
-  SS --> EK
-  SS --> TS
-  SS --> MG
-  SS --> CA
-  SS --> SA
-  SS --> MA
-  SS --> BS
-  BS --> W1
-  BS --> W2
-  BS --> WN
-
-  classDef keeper fill:#e3f2fd,stroke:#1565c0,color:#0d47a1;
-  classDef agent fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
-  classDef worker fill:#eeeeee,stroke:#999999,color:#333333;
-  class EK keeper;
-  class CA,SA,MA agent;
-  class W1,W2,WN worker;
-
+""" 
 ```
 
 Both the order of children and the restart strategy carry meaning. `SessionSupervisor` uses `:rest_for_one`: children are started in the listed order, and if one crashes, it and everything started _after_ it restart, while everything started _before_ it stays untouched. The `EtsKeeper` comes first so that it survives a crash of any downstream process, since the tables holding statistics, traces, and the work queue outlive a Manager or agent failure and remain available for post-mortem inspection. The worker pool comes last, under its own `DynamicSupervisor`, because workers are the most numerous and the most disposable.
@@ -242,51 +208,6 @@ sequenceDiagram
 """
 ```
 
-<!-- livebook:{"output":true} -->
-
-```mermaid
-sequenceDiagram
-  participant C as Caller
-  participant MG as Manager
-  participant WQ as work_queue (ETS)
-  participant W as Worker
-  participant PS as branch_evidence PubSub
-  participant CA as ContradictionAgent
-  participant TS as Task.Supervisor
-
-  C->>MG: prove(conjecture)
-  MG->>WQ: seed root branch
-  MG->>W: spawn N workers
-
-  loop until closed / stalled / timeout
-    W->>WQ: checkout branch
-    Note over W: Branch.step/4 (pure)
-    alt branch splits
-      W->>WQ: push child branches
-      W->>PS: broadcast {:branch_split, parent, children}
-    else branch has closing options
-      W->>PS: broadcast {:local_clashes, branch, options}
-    else branch closes on ground contradiction
-      W->>PS: broadcast {:branch_closed, branch}
-    end
-    PS-->>CA: deliver evidence
-    CA->>TS: dispatch CSP (union of one option per open branch)
-    Note over TS: ShotUn.unify(...) |> take(1)
-    alt common unifier found
-      TS-->>CA: {:ok, theta}
-      CA->>MG: {:proof_result, {:unsat, theta}}
-      MG-->>C: {:thm, proof}
-    else no global unifier yet
-      TS-->>CA: :error
-      Note over CA: keep accumulating evidence
-    end
-  end
-
-  Note over MG: workers all idle, trigger deepening
-  MG->>W: {:wake_up, new_gamma, new_prim_depth}
-
-```
-
 Three features of this flow determine the architecture's behaviour. First, the worker and $\mathcal{CA}$ never call each other. The worker's only outbound communication about closure is a broadcast; $\mathcal{CA}$'s only inbound is a subscription. Either could be replaced, duplicated, or (in $\mathcal{CA}$'s case) joined by a second subscriber without any modification to the worker. That is what $\mathcal{SA}$ and $\mathcal{MA}$ do. Second, the CSP fires _eagerly and asynchronously_. Every piece of new evidence can trigger a solve, and the solve runs on a Task so $\mathcal{CA}$ remains responsive. The prover therefore attempts termination continuously and is never serialised on the closure check. Third, the Manager's role in the steady state is small (seed, spawn, adjudicate the final result) and grows only when the search stalls.
 
 ## Iterative Deepening
@@ -297,7 +218,7 @@ When a worker finds no applicable rule within budget, it parks the branch on the
 
 <!-- livebook:{"break_markdown":true} -->
 
-> `Manager.check_and_trigger_deepening/1` fires when the idle-worker set becomes full and dispatches on that four-way condition, in the order saturated $\to$ parked $\to$ exhausted $\to$ all-closed; parked branches are checked before exhausted ones because an exhausted branch is a dead end for itself, not for the tableau. `deepen_or_report_unknown/1` either reports `:unknown` (if iterative deepening is disabled, which is an ablation parameter) or raises the limits and wakes the pool. The settle call is bounded by whatever remains of the proof's own deadline rather than run to completion: while the Manager blocks on it, it cannot process its own `:timeout`, and the CSP it is waiting for is an exponential cartesian product. Giving up on a settle is safe, a late answer is treated as `:open`, which merely deepens or falls through to the timeout already queued behind it. Because parked branches retain their full state on the idle queue, and because the `:settle` path reuses the same eager CSP machinery, the stall $\to$ settle $\to$ deepen cycle adds no recomputation: it is the same processes and the same tables, only deeper.
+> `Manager.check_and_trigger_deepening/1` fires when the idle-worker set becomes full and dispatches on that four-way condition, in the order saturated, parked, exhausted, all-closed; parked branches are checked before exhausted ones because an exhausted branch is a dead end for itself, not for the tableau. `deepen_or_report_unknown/1` either reports `:unknown` (if iterative deepening is disabled, which is an ablation parameter) or raises the limits and wakes the pool. The settle call is bounded by whatever remains of the proof's own deadline rather than run to completion: while the Manager blocks on it, it cannot process its own `:timeout`, and the CSP it is waiting for is an exponential cartesian product. Giving up on a settle is safe, a late answer is treated as `:open`, which merely deepens or falls through to the timeout already queued behind it. Because parked branches retain their full state on the idle queue, and because the `:settle` path reuses the same eager CSP machinery, the stall-settle-deepen cycle adds no recomputation: it is the same processes and the same tables, only deeper.
 
 ## The Peer Agents
 
@@ -317,7 +238,7 @@ __The model agent $\mathcal{MA}$__ is $\mathcal{CA}$'s dual. $\mathcal{CA}$'s go
 
 <!-- livebook:{"break_markdown":true} -->
 
-> Both peers `Registry.register` on `branch_evidence_<session>` exactly as $\mathcal{CA}$ does, and both are children of the `SessionSupervisor` peer to $\mathcal{CA}$. $\mathcal{SA}$'s hints flow worker$\to$(evidence)$\to\mathcal{SA}\to$`:suggestions` table$\to$worker, which is a full loop through shared memory that never touches $\mathcal{CA}$. $\mathcal{MA}$ isolates each backend probe on a supervised, monitored `Task`, so a crashing model finder frees its branch for re-probing rather than blocking $\mathcal{MA}$, and it skips branches whose frontier is smaller than `model_agent_min_frontier` ($3$) or larger than `model_agent_max_frontier` ($100$), with at most `model_agent_max_in_flight` ($2$) probes outstanding. The default configuration runs workers, $\mathcal{CA}$ and $\mathcal{SA}$, with $\mathcal{MA}$ inert at `model_agent_backend: :none`. Each of the three (`contradiction_agent`, `suggestions_enabled`, `model_agent_backend`) is an independently ablatable layer, which is exactly how <a href="08_evaluation.livemd">Chapter 8</a> treats them.
+> Both peers `Registry.register` on `branch_evidence_<session>` exactly as $\mathcal{CA}$ does, and both are children of the `SessionSupervisor` peer to $\mathcal{CA}$. $\mathcal{SA}$'s hints flow worker$\to$(evidence)$\to\mathcal{SA}\to$`:suggestions` table$\to$worker, which is a full loop through shared memory that never touches $\mathcal{CA}$. $\mathcal{MA}$ isolates each backend probe on a supervised, monitored `Task`, so a crashing model finder frees its branch for re-probing rather than blocking $\mathcal{MA}$, and it skips branches whose frontier is smaller than `model_agent_min_frontier` ($3$) or larger than `model_agent_max_frontier` ($100$), with at most `model_agent_max_in_flight` ($2$) probes outstanding. The default configuration runs workers, $\mathcal{CA}$ and $\mathcal{SA}$, with $\mathcal{MA}$ inert at `model_agent_backend: :none`. Each of the three (`contradiction_agent`, `suggestions_enabled`, `model_agent_backend`) is an independently ablatable layer. <a href="08_evaluation.livemd">Chapter 8</a> ablates the first two; $\mathcal{MA}$ stayed at `:none` throughout that study, so its contribution is not measured there.
 
 ## A Proof, End to End
 
@@ -348,30 +269,6 @@ proof
 |> Kino.Mermaid.new()
 ```
 
-<!-- livebook:{"output":true} -->
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#999999', 'edgeLabelBackground': '#ffffff', 'fontFamily': 'sans-serif'}}}%%
-graph TD;
-  classDef given fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1,rx:8px,ry:8px;
-  classDef rule fill:#eeeeee,stroke:#999999,stroke-width:2px,color:#333333,rx:8px,ry:8px;
-  classDef closure fill:#fff3e0,stroke:#cc5500,stroke-width:2px,color:#000000,rx:8px,ry:8px;
-  classDef model fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20,rx:8px,ry:8px;
-  classDef subst fill:#f9fbe7,stroke:#827717,stroke-width:2px,color:#000000,rx:8px,ry:8px,stroke-dasharray: 5 5;
-  classDef bdd_oracle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#880e4f,rx:8px,ry:8px,stroke-dasharray: 3 3;
-  N0["$${\text{(1)}\;\text{given}\;\neg ((\forall X.\,\mathrm{p}\,X) \supset (\mathrm{p}\,\mathrm{a}))}$$"]:::given;
-  N1["$$\begin{aligned}&\text{(2)}\;\forall X.\,\mathrm{p}\,X\\\\&\text{(¬⊃}\;\text{on}\;\text{1)}\end{aligned}$$"]:::rule;
-  N2["$$\begin{aligned}&\text{(3)}\;\neg (\mathrm{p}\,\mathrm{a})\\\\&\text{(¬⊃}\;\text{on}\;\text{1)}\end{aligned}$$"]:::rule;
-  N3["$$\begin{aligned}&\text{(4)}\;\mathrm{p}\,X\\\\&\text{(∀}\;\text{on}\;\text{2)}\end{aligned}$$"]:::rule;
-  N4["$$\begin{aligned}&\bot\\\\&\text{(4,}\;\text{3)}\end{aligned}$$"]:::closure;
-  N0 -.-> N1;
-  N1 -.-> N2;
-  N2 -.-> N3;
-  N3 -.-> N4;
-  Sub["$$\begin{aligned}&\text{Global}\;\text{Substitution:}\\\\&\bullet\;X\mapsto\mathrm{a}\end{aligned}$$"]:::subst;
-
-```
-
 > _Behind this one tree: the Manager seeded the negated conjecture, a worker applied $\neg\!\supset$ to split off $\forall X.\,p~X$ and $\neg(p\,a)$, the $\gamma$-rule introduced a fresh $X$ for the universal, the worker broadcast the clash $\{p\,X, \neg p\,a\}$, $\mathcal{CA}$'s CSP handed $\{p\,X \overset{?}{=} p\,a\}$ to `ShotUn.unify` and got $[X \mapsto a]$, and that global substitution (closing the single open branch) was reported back and reconstructed into the derivation shown. The unifier in the proof's substitution is the one <a href="04_unification.livemd">Chapter 4</a> produces for this disagreement: local expansion, published clash, global unification._
 
 For a theorem with a genuine branch split, the same machinery does strictly more. Several branches broadcast clashes, and the CSP must find one pre-unifier $\Theta$ satisfying all of them at once. The shape of the interaction is unchanged. Whether the tableau has one open branch or many, closure is always collecting the options and unifying their union.
@@ -393,4 +290,4 @@ The result is a prover whose _logic_ lives in pure functions (the calculus of Ch
 
 ---
 
-Previous: <a href="05_term_order.livemd">Chapter 5: Term Ordering</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="07_extensions.livemd">Chapter 7: Peer Agents and Proof Reconstruction</a>
+Previous: <a href="05_term_order.livemd">Chapter 5: Term Ordering</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="07_extensions.livemd">Chapter 7: Peer Agents and Proof Reconstruction</a>

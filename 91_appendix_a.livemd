@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, github: "jcschuster/ShotTx"},
+  {:shot_tx, "0.1.0"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -15,7 +15,7 @@ The problems collected here are drawn from the structured set of Benzmüller and
 
 <!-- livebook:{"break_markdown":true} -->
 
-What makes the set worth using in place of a sample of TPTP is that its problems are graded along two dimensions, and each problem is annotated with the weakest assumptions under which it holds. The first dimension is extensionality. Varying the four properties $\eta$, $\xi$, $\mathfrak{f}$ and $\mathfrak{b}$ over the semantics of <a href="#chapter-references">[BBK04]</a>, which <a href="02_preliminaries.livemd">Chapter 2</a> builds on, yields eight classes of models, from $\mathfrak{M}_\beta$ where only $\beta$-equal terms are identified up to $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$, which is Henkin semantics. Every example is labelled with the largest class in which it is valid, and validity in a larger class implies validity in every smaller one. A problem valid in $\mathfrak{M}_\beta$ therefore tests no extensionality principle at all, and one valid only in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$ tests all of them.
+What makes the set worth using in place of a sample of TPTP is that its problems are graded along two dimensions, and each problem is annotated with the weakest assumptions under which it holds. The first dimension is extensionality. Four properties are involved: $\eta$-conversion, the congruence rule $\xi$ identifying two abstractions with identical bodies, functional extensionality $\mathfrak{f}$ identifying two functions that agree on every argument, and Boolean extensionality $\mathfrak{b}$ identifying two formulae with the same truth value. Varying them over the semantics of <a href="#chapter-references">[BBK04]</a>, which <a href="02_preliminaries.livemd">Chapter 2</a> builds on, yields eight classes of models, from $\mathfrak{M}_\beta$ where only $\beta$-equal terms are identified up to $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$, which is Henkin semantics. Every example is labelled with the largest class in which it is valid, and validity in a larger class implies validity in every smaller one. A problem valid in $\mathfrak{M}_\beta$ therefore tests no extensionality principle at all, and one valid only in $\mathfrak{M}_{\beta\mathfrak{f}\mathfrak{b}}$ tests all of them.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -53,12 +53,8 @@ defmodule Util do
     Kino.Frame.render frame, diagram
   end
 end
-```
 
-<!-- livebook:{"output":true} -->
-
-```
-{:module, Util, <<70, 79, 82, 49, 0, 0, 12, ...>>, ...}
+Kino.nothing
 ```
 
 ```elixir
@@ -67,12 +63,7 @@ import ShotDs.Hol.Sigils
 import ShotTx.Prover
 
 Logger.configure(level: :error)
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-:ok
+Kino.nothing
 ```
 
 ## The Propositional and Quantifier Rules
@@ -398,7 +389,7 @@ Status: THM
 :ok
 ```
 
-Moving the binders outward turns the statement into an equation between two abstractions, valid in $\mathfrak{M}_{\beta\xi\mathfrak{b}}$. This is where the equality-expansion rules of <a href="03_tableaux.livemd#equality-rules">§ Equality Rules</a> have to descend under a binder before the Boolean rules can act. Note that `simplification: :deep` would close this instantly as de Morgan rules are solved by the BDD normalization of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>.
+Moving the binders outward turns the statement into an equation between two abstractions, valid in $\mathfrak{M}_{\beta\xi\mathfrak{b}}$. This is where the equality-expansion rules of <a href="03_tableaux.livemd#equality-rules">§ Equality Rules</a> have to descend under a binder before the Boolean rules can act. Note that `simplification: :deep` would close this instantly as de Morgan rules are solved by the BDD normalisation of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>.
 
 $$
 (\lambda o, o.\; 2 \wedge 1) = (\lambda o, o.\; \neg(\neg 2 \vee \neg 1))
@@ -622,9 +613,9 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-[timeout: 60000] -> Timeout in 66529 ms
-[timeout: 60000, iterative_deepening: false] -> UNK in 44511 ms
-[timeout: 60000, iterative_deepening: false, initial_gamma_limit: 3, initial_prim_limit: 2] -> Timeout in 65016 ms
+[timeout: 60000] -> Timeout in 65684 ms
+[timeout: 60000, iterative_deepening: false] -> UNK in 51062 ms
+[timeout: 60000, iterative_deepening: false, initial_gamma_limit: 3, initial_prim_limit: 2] -> Timeout in 63428 ms
 ```
 
 <!-- livebook:{"output":true} -->
@@ -645,4 +636,4 @@ end
 
 ---
 
-Previous: <a href="90_bibliography.livemd">Bibliography</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a>
+Previous: <a href="90_bibliography.livemd">Bibliography</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="99_declaration_of_authorship.livemd">Declaration of Independent Authorship</a>

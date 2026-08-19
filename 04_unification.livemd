@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_un, "~> 0.1"},
+  {:shot_un, "0.2.1"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -49,7 +49,7 @@ __Definition (Decomposition).__ Let $s = \lambda\bar{\tau}.\, h(\bar{s}_n)$ and 
 The flex-rigid case is where the search branches and where non-termination enters. A flex term $\lambda\bar{\tau}.\, X(\bar{u})$ must be unified with a rigid $\lambda\bar{\tau}.\, h(\bar{v})$. The head $X$ is unknown, and a unifier must choose a value for it whose own head, after $\beta$-reduction, is $h$. There are two ways to arrange that.
 
 __Definition (General Binding).__ Let $X : \bar{\alpha}_n \to \varsigma$ be flex and let the opposing rigid head be $h$. A _general binding_ for $X$ has the form
-$$\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\bar{n}), \dots, H_k(\bar{n}))$$
+$$\lambda \bar{\tau}_n.\, \mathcal{H}(H_1(\overleftarrow{n}), \dots, H_k(\overleftarrow{n}))$$
 where the $\bar{H}_k$ are fresh free variables of the appropriate types and the head $\mathcal{H}$ is one of:
 
 * the rigid head $h$ itself, giving an _imitation_ binding; or
@@ -59,9 +59,15 @@ where the $\bar{H}_k$ are fresh free variables of the appropriate types and the 
 
 The imitation binding copies the opposing rigid head into the solution; the projection binding discards it and promotes one of $X$'s arguments to the head position, on the assumption that the argument already carries the required structure. Each fresh $H_j$ is applied to all of $X$'s bound variables $\bar{y}_n$ so that no solution is excluded a priori, since the $H_j$ may still depend on anything in scope. The equation is then replaced by the binding applied against the rigid side, and the search recurses.
 
-> `ShotUn.Bindings.generic_binding/3` builds these. Given the flex head, the rigid head and the requested binding kinds `[:imitation, :projection]`, it forms the candidate heads (the rigid head for imitation, each of $X$'s argument variables for projection), keeps only those whose goal type agrees with that of the opposing side, and for each surviving head constructs the matrix $\mathcal{H}(H_1\,\bar{y}, \dots, H_k\,\bar{y})$ by allocating the fresh holes $H_j$ at the enclosing type, applying them to $\bar{y}$, and re-abstracting over $\bar{y}$. The result is a list of `Substitution` structs, one per admissible binding, each mapping $X$ to a general binding.
+<!-- livebook:{"break_markdown":true} -->
+
+> `ShotUn.Bindings.generic_binding/3` builds these. Given the flex head, the rigid head and the requested binding kinds `[:imitation, :projection]`, it forms the candidate heads (the rigid head for imitation, each of $X$'s argument variables for projection), keeps only those whose goal type agrees with that of the opposing side, and for each surviving head constructs the matrix $\mathcal{H}(H_1(\overleftarrow{y}), \dots, H_k(\overleftarrow{y}))$ by allocating the fresh holes $H_j$ at the enclosing type, applying them to $\overleftarrow{y}$, and re-abstracting over $\bar{y}$. The result is a list of `Substitution` structs, one per admissible binding, each mapping $X$ to a general binding.
+
+<!-- livebook:{"break_markdown":true} -->
 
 The configuration determines which kinds are offered. Against a rigid _constant_ head both imitation and projection are candidates; against a rigid _bound variable_ only projection makes sense, since there is no constant to imitate. `ShotUn` special-cases these: `:fv`-`:co` and `:co`-`:fv` request `[:imitation, :projection]`, while `:fv`-`:bv` and `:bv`-`:fv` request `[:projection]` alone. A rigid-flex pair is flipped to flex-rigid first so the binding is always generated for the variable side.
+
+<!-- livebook:{"break_markdown":true} -->
 
 One special case applies before the general bindings are built. When the flex side is a _bare_ variable $X$ applied to nothing (no arguments, no binders) and $X$ does not occur in the opposing term, the only general binding is imitation of the whole term, so the procedure binds $X$ directly to the rigid side rather than enumerating. This is the ordinary first-order variable-elimination step, recovered as a degenerate case. The occurs-check that guards it is what makes this step sound.
 
@@ -118,11 +124,11 @@ alias ShotDs.Util.LatexFormatter, as: LF
   {~g[f @ X @ a], ~g[f @ a @ a]}
 end
 
-Kino.Markdown.new("""
+Kino.Markdown.new """
 $$
 #{LF.format! lhs, hide_types: true} \\overset?= #{LF.format! rhs, hide_types: true}
 $$
-""")
+"""
 ```
 
 The heads agree ($f$ vs $f$), so the equation decomposes into $X \overset{?}{=} a$ and $a \overset{?}{=} a$. The second is trivial; the first is a bare-variable bind. We expect the single pre-unifier $[X \mapsto a]$ with no residual flex-flex constraints.
@@ -232,4 +238,4 @@ Under `strategy: :auto`, `resolve_auto/1` tests the pattern precondition first, 
 
 ---
 
-Previous: <a href="03_tableaux.livemd">Chapter 3: Higher-Order Tableaux</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="05_term_order.livemd">Chapter 5: Term Ordering</a>
+Previous: <a href="03_tableaux.livemd">Chapter 3: Higher-Order Tableaux</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="05_term_order.livemd">Chapter 5: Term Ordering</a>

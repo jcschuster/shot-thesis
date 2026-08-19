@@ -4,26 +4,143 @@
 
 ## Summary
 
-[TODO]
+This thesis has built Shot, a prover for classical higher-order logic consisting of a free-variable tableau calculus over Church's simple type theory <a href="#chapter-references">[Chu40]</a> with primitive equality, a concurrent architecture for it on the BEAM, three optional agents attached to a stream of closure evidence, and reconstruction of an ordinary tableau proof from the traces a concurrent search leaves behind. The implementation is four Hex packages, `shot_ds` for terms, types and the semantics of the type theory, `shot_un` for pre-unification, `shot_to` for the term order and `shot_tx` for the calculus, the architecture and proof objects, the first three usable without the prover. The thesis itself is the set of Livebook notebooks in which that behaviour is executed rather than paraphrased.
 
-## What the Measurements Show
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO: the reading of <a href="08_evaluation.livemd">Chapter 8</a>, stated without re-tabulating it.]
+One property of free-variable tableaux organises the whole of it. A free variable is rigid, so a value that closes one branch is a commitment on every branch, and closure is therefore the single decision a branch cannot take on its own. Everything else a branch does is local. The design pursued here separates those two things as far as they can be separated: the calculus of <a href="03_tableaux.livemd">Chapter 3</a> makes every branch-level rule binding-free, so that branch expansion never commits to a value and never has to withdraw one, and the architecture of <a href="06_architecture.livemd">Chapter 6</a> parallelises the local work while leaving one serialised decision over the accumulated evidence.
+
+## Design Decisions and Assumptions
+
+The system is the result of a small number of decisions, each of which buys a property and assumes something in exchange. Collecting them is the more useful summary of what has been built.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__A tableau calculus, and no clausification.__ The input formula reaches the calculus in the shape it was written in, decomposed by rules that mirror its connectives, so the derivation is legible and the failure of a search says which branch remained open. This is the property <a href="01_introduction.livemd">Chapter 1</a> argued for against the superposition systems that outperform tableau provers on the same benchmarks, and it assumes that structure preservation and a legible proof object are worth the coverage that clausification and saturation would buy. Rigidity is what the assumption costs, since it is the one global dependency a tableau has and a clausal system does not.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Binding-free rules, so that no branch commits.__ No rule of <a href="03_tableaux.livemd">Chapter 3</a> applies a substitution. A rule that finds two literals which could be made complementary records the pair as closure evidence and continues, and the pre-unifiers computed to test the pair are discarded. Branch expansion is then independent work with no backtracking over instantiations, which is what makes it parallelisable at all. The discipline is assumed throughout the term-level chapters and constrains them: rewriting admits only rules whose left-hand side matches with an empty matcher, the term order of <a href="05_term_order.livemd">Chapter 5</a> is required to be stable under a substitution that has not been computed, and a branch reporting itself open reports an under-approximation, since a pair it could not separate syntactically may still be separable.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Global closure as one constraint satisfaction problem.__ What the branches publish is a set of candidate closing pairs per branch, and closing the tableau means choosing one pair from each open branch such that the chosen pairs admit a common pre-unifier. Solving that once, in a dedicated process, gives a higher-order counterpart to incremental closure <a href="#chapter-references">[Gie01]</a> and removes instantiation backtracking from the search entirely. The assumption is that this single global step is small relative to the local work. It is the assumption the measurements contradict, and the one place where the design as built does not hold up.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__A bounded worker pool over shared structures, rather than a process per branch.__ Branches are values held in a shared ordered table, and a fixed pool of long-lived workers takes one, applies a bounded number of rules to it and returns it. The alternative, adopted at first order by Goéland <a href="#chapter-references">[CRD+22]</a>, is one process per branch, and it was rejected because branches are created faster than they are closed, each retains its full formula set, and each would publish evidence to the same single consumer. The pool assumes instead that a branch is cheap to hand between processes, which is why the data structures are what they are: terms are hash-consed into a global pool and referred to by identifier, intermediate terms are built in process-local scratchpads and committed only when a result survives, and the session's state is held in public tables addressed by branch prefix so that closure, tombstoning and hint lookup are single operations.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Evidence is published, not requested.__ A branch's only outbound message about closure is a broadcast of its candidate pairs, and the consumers subscribe. The contradiction agent $\mathcal{CA}$ that solves the global constraint is one subscriber, and once one exists a second costs close to nothing, which is what makes the suggestion agent $\mathcal{SA}$ and the model agent $\mathcal{MA}$ of <a href="07_extensions.livemd">Chapter 7</a> available at all. Two properties are assumed of every consumer: it cannot block the search, and it cannot be required for soundness. Both hold, so each agent is switchable and the question of whether an agent helps is a heuristic one rather than a question about the calculus. The direction of control is the difference from the concurrent higher-order systems named in <a href="01_introduction.livemd">Chapter 1</a>, where agents advise a scheduler.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Boolean extensionality by decomposition, the functional principles by equality expansion.__ An $o$-typed subterm in an argument position is opaque to rules that act on heads, so renaming moves it onto the branch as an equation and instantiation discharges the parameter left behind by case analysis over a finite domain, which is the syntactic content of $\mathcal{D}_o$ having two elements. The functional principles are supplied by the rules that expand an equality at a functional type. The assumption there is narrower than it looks: those rules apply to a formula that already is an equality, and nothing turns a pair of rigid-headed atoms into a disequality goal, so the calculus reaches the functional principles only where the problem states them as equalities.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__A complete propositional decision procedure inside the search loop.__ Every formula is passed through a reduced ordered binary decision diagram <a href="#chapter-references">[Bry86]</a> before a rule is chosen for it, which is not what provers in this family normally do. The justification is a cost assumption specific to higher-order search: $\gamma$ and primitive substitution exceed the propositional layer by orders of magnitude, so a procedure that keeps a formula away from them repays itself, and a tautology or a propositional contradiction is decided at cost zero. What the decision assumes in exchange is that a normalised propositional form is an acceptable substitute for the one the problem was written with, which sits awkwardly beside the first decision on this list and is taken up as future work.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Bounds with iterative deepening in place of a completeness proof.__ Pre-unification is semi-decidable and $\gamma$ and primitive substitution do not terminate, so each is bounded and the bounds are raised together when the search saturates, with parked rules resumed where they left off rather than recomputed. Soundness is argued rule by rule; the fairness of the schedule is what stands in for a completeness argument, and <a href="01_introduction.livemd">Chapter 1</a> states that no Henkin completeness proof is given for the combination of demodulation, extensionality and the bounds.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__Refutation is the answer; a countermodel is a side effect.__ The prover reports a countermodel when a branch saturates and its literals are pairwise non-complementary by a syntactic test. That test is never checked against a model, so a countermodel answer is unattested whether or not it is right, and the scoring throughout treats refutations as the result and countermodels as a separate uncertified count.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__A monomorphic logic on a managed runtime.__ Rank-1 polymorphic input is monomorphised during parsing, so no reasoning about type variables happens inside the calculus. The BEAM was chosen for reduction-counted preemption, per-process heaps, per-core scheduling and concurrent table access, and for supervision, which lets a failing worker be restarted without the session losing its other branches. The exchange is a constant factor against implementations in OCaml and C, accepted in <a href="01_introduction.livemd">Chapter 1</a> on the argument that parallel search would compensate for it.
+
+## Measurement Results
+
+The ablation study of <a href="08_evaluation.livemd">Chapter 8</a> tests those decisions component by component, and two of its results bear on the design rather than on the numbers.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The first confirms the partition. $\mathcal{CA}$ accounts for roughly half of all refutations, and a prover deciding closure only locally answers a weaker question than the one posed. Global closure is therefore where the search happens, which is what the calculus predicts.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The second contradicts the assumption behind it. A pool of workers performs about three times the inference of a single worker at equal wall clock and does not increase the rate at which global closure is attempted, so the parallelism lands on the side of the partition that does not decide the verdict. The follow-up probe locates the reason in $\mathcal{CA}$ as implemented: it holds one search slot, a dispatched search occupies it for about half the budget, every trigger arriving meanwhile is discarded, and the search itself enumerates the cartesian product of the per-branch candidate lists, so a wider frontier makes a dispatch less likely and a dispatched search more expensive. $\mathcal{CA}$ is in its present form too weak for the architecture built around it: the global step is not small relative to the local work, and until it is given either a better method of solving for a global pre-unifier or concurrency of its own, additional workers cannot help. This is the taxonomy of <a href="#chapter-references">[Bon00]</a> applied to a higher-order tableau, and the deficiency lies in the global step rather than in the calculus, since nothing about rigidity requires the constraint to be solved by one process enumerating combinations.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The qualitative study on the structured problems of <a href="#chapter-references">[BB05]</a> confirms the boundary the extensionality decision predicts. Grouped by the model class of <a href="#chapter-references">[BBK04]</a> in which each problem is valid, the classes needing only conversion or Boolean extensionality are largely decided and those needing one of the functional principles are largely not, which locates an absent rule rather than a general weakness.
 
 ## Limitations
 
-[TODO]
+__Nothing measured was tuned.__ Every configuration ran at the defaults of <a href="06_architecture.livemd">Chapter 6</a> with a uniform budget, one run each, and only two numeric parameters were swept at all. No portfolio, no per-problem strategy selection, no schedule of parameters and no tuning against the corpus took place, and the prover has never been run in a competition setting. Three observations bound how the counts should be read. Switching one non-default value, eager definition unfolding, improves on the baseline by more than any component in the study contributes; the union of problems solved across the sixteen configurations exceeds the baseline by a fifth; and both swept parameters were left at their defaults because the sweep gave no reason to move them, not because the space around them was explored. The absolute counts are therefore a lower bound on what the calculus reaches, and no figure in <a href="08_evaluation.livemd">Chapter 8</a> should be read as this system's ceiling or compared against a tuned prover's.
+
+<!-- livebook:{"break_markdown":true} -->
+
+__The performance figures measure an untuned prototype on a managed runtime.__ Against the reference systems on the structured set the prover is about a factor of three slower at the median and two orders of magnitude at its extreme, and the parallel search does not recover the difference, for the reason above. The constant factor of the substrate and the deficiency in the global step are separate, and only the second is a defect of the design.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The remaining limitations follow from the decisions rather than from the measurement.
+
+* Completeness is not established for the calculus as a whole, and the semantic layering of <a href="#chapter-references">[BBK04]</a> is used to state what is assumed rather than to prove what is achieved.
+* The functional principles are reachable only from a formula that is already an equality, so a branch needing one of them to separate two atoms saturates.
+* Countermodel answers are inferred from a syntactic test and never checked, so those agreeing with the reference status are unattested as well.
+* The choice operator is absent, and the fragment is narrower than that of <a href="#chapter-references">[BB11]</a>.
+* The logic is monomorphic, so a proof requiring an instance the monomorphisation does not produce is out of reach.
+* Corpus coverage is bounded by the parser rather than by the calculus: about one problem in six was never read.
+* Concurrency is confined to a single BEAM node.
+* $\mathcal{MA}$ was inert in every configuration of the study, so its cost and its contribution are unmeasured.
+* Verdicts are not deterministic. Workers race, evidence reaches $\mathcal{CA}$ in a nondeterministic order, and a small proportion of problems answer differently across identical repeats.
 
 ## Future Work
 
-[TODO: candidates already named in earlier chapters, including the dual instantiation of definitions in the sense of TPS, a third `unfold_defs` mode, and further consumers of the evidence stream of <a href="06_architecture.livemd">Chapter 6</a>.]
+The global closure search comes first, since it is the one decision the measurements overturn. Three changes follow from the probe counters and are stated in <a href="08_evaluation.livemd#closure-search-under-the-two-pool-sizes">§ Closure Search under the Two Pool Sizes</a>: a per-search deadline set as a fraction of the remaining budget rather than the session deadline, retention of the most recent suppressed trigger so that it runs when the slot frees, and a bounded number of searches in flight over disjoint subsets of the open branches.
 
-## Footnotes
+<!-- livebook:{"break_markdown":true} -->
 
-[TODO: cite]
+Those redistribute work the agent already performs. The larger question is how the global pre-unifier is computed. The present enumeration shares nothing between two combinations that agree on all but one candidate pair, retains no partial solution, and rejects a combination only after a unification call has failed on it. Two directions are open and they are compatible. The first keeps the search serial and makes it incremental in the sense of <a href="#chapter-references">[Gie01]</a>: retain the partial solutions of the combinations already tried, propagate the constraint each newly published pair imposes on the candidates of the other branches, and order the candidate lists so that a combination extending no surviving partial solution is discarded without a unification call. The second applies concurrency inside pre-unification itself, whose search branches at every flex-rigid pair into independent subtrees, so a single combination can be attempted across several schedulers. Either direction, or a different one that raises the rate at which closure is attempted, is required before a wider pool is worth its inference.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The second direction concerns the signature. $\Sigma^{\mathrm{HOL}}$ of <a href="02_preliminaries.livemd">Chapter 2</a> carries $\neg$ at $o {\to} o$ and four of the sixteen Boolean functions at $(o,o) {\to} o$, so a problem written with any of the remaining ones reaches the calculus as a composition of those five. Since a tableau performs neither clausification nor normalisation, the signature should be maximal at both types: all four functions at $o {\to} o$ and all sixteen at $(o,o) {\to} o$ as constants in their own right, each with its own rule and its own case split. Exclusive disjunction is the clearest instance. Written as $(\varphi \land \neg\psi) \lor (\neg\varphi \land \psi)$ it reaches its two branches in three rule applications through an intermediate formula in which both arguments occur twice; as a constant of its own it is one $\beta$-rule. The interpretation conditions of <a href="02_preliminaries.livemd">Chapter 2</a> extend to each added constant by its truth table, so the semantics is unchanged, the general bindings of primitive substitution <a href="#chapter-references">[And89]</a> draw from a larger head family at the same depth, and the proof object presents the connective the problem was written with.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The preprocessing of <a href="03_tableaux.livemd">Chapter 3</a> has to be adapted for that, and as it stands works against it. The diagram readback emits $\neg$, $\land$ and $\lor$ only, under the six short-circuit identities of <a href="03_tableaux.livemd#preprocessing-and-bdds">§ Preprocessing and BDDs</a>, so a formula written with $\equiv$ or with any function outside those three is returned in a normal form over them and the connective is lost where the oracle rewrites the formula. The two extreme verdicts are unaffected, since $\top$ and $\bot$ are canonical whatever the readback emits; everything in between, which is the majority of what the oracle sees, is normalised more heavily than the calculus requires. A readback over a maximal signature would recognise the node patterns of the whole family, so that the diagram $\langle v, \langle w, \bot, \top\rangle, \langle w, \top, \bot\rangle\rangle$ is returned as an exclusive disjunction of $v$ and $w$ rather than as its expansion, and canonicity is kept without discarding structure. Which of the sixteen functions are worth recognising, and whether recognition should be attempted below the root, are open questions.
+
+<!-- livebook:{"break_markdown":true} -->
+
+A third direction addresses the extensionality boundary. Finite $o$-quantification shows the shape a rule for the remaining functional principles would take: it decides the examples inside its scope outright and leaves the rest of the class untouched. The rule to try admits the arguments of a disagreeing atom pair as an extensionality goal rather than only as a closure candidate, and the part needing care is its interaction with the binding-free discipline, since such a goal introduces a formula whose provability depends on a value the branch may not choose.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The fourth direction concerns the choice operator, which was excluded in <a href="01_introduction.livemd">Chapter 1</a> and should be investigated for this calculus. Backes and Brown <a href="#chapter-references">[BB11]</a> give analytic tableaux for higher-order logic with choice over tableau objects of the same kind used here. What this calculus adds to that setting is the deferred substitution, so a choice rule would have to record the condition under which its witness exists as evidence, in the way the renaming and instantiation rules record theirs, rather than committing to a witness on the branch that introduced it.
+
+<!-- livebook:{"break_markdown":true} -->
+
+The last direction reads the tableau as a clausification. A branch's literal set is a conjunction of literals, and the open branches of a tableau are a disjunction of those conjunctions, so the analysis a tableau carries out on its input delivers something close to a conjunctive normal form without a clausification step. A resolution or superposition calculus can therefore be run on the literal set of a single branch, where the term order and the equations of <a href="03_tableaux.livemd">Chapter 3</a> are already available. The condition such a calculus must meet is the one rigidity imposes: an inference has to return a pre-unifier in the sense of <a href="04_unification.livemd">Chapter 4</a>, which the branch publishes as evidence, rather than apply a substitution to the branch's terms. Superposition with lambdas <a href="#chapter-references">[BBT+21]</a> and the treatment of Boolean subterms in <a href="#chapter-references">[NBTV21]</a> state what the higher-order side of such a calculus requires; what is open here is which of its inferences survive the restriction to rewrite rules with an empty matcher, and whether a branch-local saturation repays its cost on a branch the global search may close at any moment.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Several smaller items were named where they arose. Dual instantiation is applied to instantiation candidates in <a href="03_tableaux.livemd">Chapter 3</a> and not to definitions, which is where TPS applies it <a href="#chapter-references">[BA98]</a>: a branch could retain a defined atom alongside its expansion instead of choosing between the two, and the choice could be made per definition rather than per session, which is the third `unfold_defs` mode the eager row of <a href="08_evaluation.livemd">Chapter 8</a> argues for. The evidence stream admits further consumers at negligible cost, and a lemma agent over the published clash candidates is the nearest one. The runtime's distribution facilities are unused, and the closure search of the first direction above is the component whose cost would justify a second node. The study itself should be repeated with $\mathcal{MA}$ enabled, with repeats per configuration, and with the parameters tuned rather than left at their defaults, which is the one change that would make its absolute counts comparable with a published system's.
+
+## Chapter References
+
+* __[And89]__ Peter B. Andrews. On connections and higher-order logic. _Journal of Automated Reasoning_, 5(3):257–291, 1989.
+* __[BA98]__ Matthew Bishop and Peter B. Andrews. Selectively instantiating definitions. In _Automated Deduction (CADE-15)_, LNCS 1421, pages 365–380. Springer, 1998.
+* __[BB05]__ Christoph Benzmüller and Chad E. Brown. A structured set of higher-order problems. In _Theorem Proving in Higher Order Logics (TPHOLs 2005)_, LNCS 3603, pages 66–81. Springer, 2005.
+* __[BB11]__ Julian Backes and Chad E. Brown. Analytic tableaux for higher-order logic with choice. _Journal of Automated Reasoning_, 47(4):451–479, 2011.
+* __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
+* __[BBT+21]__ Alexander Bentkamp, Jasmin Blanchette, Sophie Tourret, Petar Vukmirović, and Uwe Waldmann. Superposition with lambdas. _Journal of Automated Reasoning_, 65(7):893–940, 2021.
+* __[Bon00]__ Maria Paola Bonacina. A taxonomy of parallel strategies for deduction. _Annals of Mathematics and Artificial Intelligence_, 29(1):223–257, 2000.
+* __[Bry86]__ Randal E. Bryant. Graph-based algorithms for Boolean function manipulation. _IEEE Transactions on Computers_, C-35(8):677–691, 1986.
+* __[Chu40]__ Alonzo Church. A formulation of the simple theory of types. _The Journal of Symbolic Logic_, 5(2):56–68, 1940.
+* __[CRD+22]__ Julie Cailler, Johann Rosain, David Delahaye, Simon Robillard, and Hinde Lilia Bouziane. Goéland: A concurrent tableau-based theorem prover (system description). In _Automated Reasoning (IJCAR 2022)_, LNCS 13385, pages 359–368. Springer, 2022.
+* __[Gie01]__ Martin Giese. Incremental closure of free variable tableaux. In _Automated Reasoning (IJCAR 2001)_, LNCS 2083, pages 545–560. Springer, 2001.
+* __[NBTV21]__ Visa Nummelin, Alexander Bentkamp, Sophie Tourret, and Petar Vukmirović. Superposition with first-class Booleans and inprocessing clausification. In _Automated Deduction (CADE-28)_, LNCS 12699, pages 378–395. Springer, 2021.
 
 <!-- livebook:{"break_markdown":true} -->
 
 ---
 
-Previous: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="90_bibliography.livemd">Bibliography</a>
+Previous: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="90_bibliography.livemd">Bibliography</a>

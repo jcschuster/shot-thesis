@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:shot_tx, "~> 0.0.3"},
+  {:shot_tx, "0.1.0"},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -84,7 +84,7 @@ end)
 |> Kino.Markdown.new
 ```
 
-> Both rows report `THM`. $\mathcal{SA}$ is a heuristic over a complete calculus, so switching it off may cost steps but never the verdict; a discrepancy here would indicate a bug in the splice rather than a property of the problem. <a href="08_evaluation.livemd">Chapter 8</a> runs the comparison across the benchmark set, where the quantity of interest is the number of $\gamma$-instantiations avoided rather than wall clock.
+> Both rows report `THM`. $\mathcal{SA}$ is a heuristic over a complete calculus, so switching it off may cost steps but never the verdict; a discrepancy here would indicate a bug in the splice rather than a property of the problem. <a href="08_evaluation.livemd">Chapter 8</a> runs the comparison across the TPTP corpus, where the quantity recorded is the number of problems solved; the per-rule counters that would show the $\gamma$-instantiations avoided are not written to the sweep's rows.
 
 ## The Model Agent
 
@@ -193,7 +193,7 @@ proof
 
 The three components of this chapter differ in function and agree in how they attach to the search. $\mathcal{SA}$ reads the evidence stream and writes a table that workers consult. $\mathcal{MA}$ reads the branch queues and writes to the Manager. Reconstruction reads a table and writes nothing. None of them is called by the search, none can block it, and each can be disabled by a flag or simply left unread.
 
-This bears out the property claimed in <a href="06_architecture.livemd">Chapter 6</a> rather than establishing a new one: where closure is published rather than requested, an additional consumer costs close to nothing. What remains open is whether these particular consumers reduce search cost enough to justify their overhead, which <a href="08_evaluation.livemd">Chapter 8</a> settles by switching $\mathcal{SA}$, $\mathcal{MA}$ and $\mathcal{CA}$ independently and measuring the contribution of each.
+This bears out the property claimed in <a href="06_architecture.livemd">Chapter 6</a> rather than establishing a new one: where closure is published rather than requested, an additional consumer costs close to nothing. What remains open is whether these particular consumers reduce search cost enough to justify their overhead, which <a href="08_evaluation.livemd">Chapter 8</a> addresses for $\mathcal{SA}$ and $\mathcal{CA}$ by switching each off against a fixed baseline. $\mathcal{MA}$ ran at `model_agent_backend: :none` throughout that study, so neither its cost nor its contribution is measured.
 
 ## Chapter References
 
@@ -209,4 +209,4 @@ This bears out the property claimed in <a href="06_architecture.livemd">Chapter 
 
 ---
 
-Previous: <a href="06_architecture.livemd">Chapter 6: A Concurrent Actor-Based Architecture</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a>
+Previous: <a href="06_architecture.livemd">Chapter 6: A Concurrent Actor-Based Architecture</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="08_evaluation.livemd">Chapter 8: Evaluation</a>

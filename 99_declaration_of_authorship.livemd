@@ -1,0 +1,27 @@
+<!-- livebook:{"file_entries":[{"name":"signature.png","type":"attachment"}]} -->
+
+# Declaration of Independent Authorship
+
+## Declaration of Authorship
+
+I hereby declare to § 10 para. 4 APO that this thesis is the result of my own independent scholarly work and that in all cases material from the work of others is acknowledged. Quotations and paraphrases are clearly indicated and no material or tools other than listed have been used. This written work has not been submitted to any university before. I understand that the use of sources whose authenticity cannot be verified is a serious violation of the principles of good academic practice (cf. https://www.uni-bamberg.de/studium/im-studium/studienorganisation/quellen/ and https://www.uni-bamberg.de/en/research/research-culture/good-academic-practice/).
+
+Furthermore, I declare that I have used text- or otherwise content-generating artificial intelligence (AI) software (e.g. ChatGPT) only after consultation and with the permission of my instructor/examiner and that I have noted this under <a href="#tools">§ Tools</a>. I am prepared to provide detailed documentation of my use of AI software (e.g. chat transcripts) if clarification is required.
+
+I am aware that this digital version can be subjected to a software-supported, anonymized check for plagiarism.
+
+Bamberg, 17 August 2026
+
+<img src="files/signature.png" width="15%" style="margin-left: 0" />
+
+Johannes Schuster
+
+## Tools
+
+For planning and executing this work, the author used Claude Sonnet 4.6 & 5, Claude Opus 4.7, 4.8, 5, Claude Fable 5, and Gemini 3.1 Pro for architecture planning, code and documentation generation, and drafting of chapter content. After using these tools, the author reviewed and edited the content as needed and takes full responsibility for the presented content.
+
+<!-- livebook:{"break_markdown":true} -->
+
+---
+
+Previous: <a href="91_appendix_a.livemd">Appendix A: Examples</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a>

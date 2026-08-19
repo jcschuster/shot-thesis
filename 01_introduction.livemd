@@ -90,13 +90,11 @@ Message passing between isolated processes also enforces the calculus's central 
 
 Supervision has a further consequence. A pre-unification stream that exhausts memory, or a rule application that raises on a malformed term, terminates one worker rather than the session; its supervisor restarts it and the remaining workers continue. The branch that worker held is not returned to the queue, since checkout removes it from the shared table, so the cost of a worker crash is one abandoned branch. Failure isolation therefore bounds the damage a single malformed term can do, and the defensive checks a single-process prover performs inline are replaced by process termination.
 
-> [TODO: state what an abandoned branch does to the verdict. It is never closed, so $\mathcal{CA}$'s active set should stay non-empty and the session should stall into `:unknown` rather than report a spurious closure; confirm this against `Manager` and `ContradictionAgent` before the sentence above stands unqualified.]
-
 <!-- livebook:{"break_markdown":true} -->
 
 The disadvantages are stated with the same directness. The BEAM is not a fast substrate for the inner loops of a theorem prover. Term traversal, unification and order comparisons are allocation-intensive symbolic operations, and an OCaml or C implementation of the same algorithms performs more of them per second than an Elixir one; Satallax, Lash and Zipperposition are single-threaded systems with substantially better constant factors than are attainable here <a href="#chapter-references">[Bro12, BK22, BBT+21]</a>. Hash-consing of terms and ETS-resident caches reduce that difference, and the speedup from parallelism must compensate for the remainder. No part of this thesis assumes that it does.
 
-> [TODO: once <a href="08_evaluation.livemd">Chapter 8</a> exists, replace the preceding sentence with the measured single-worker penalty and the measured scaling curve, and state whether the parallel speedup compensates for the constant-factor loss.]
+It does not. On the structured set of higher-order problems of <a href="#chapter-references">[BB05]</a>, the prover is about three times slower at the median than the fastest reference system on each problem it proves, and two orders of magnitude slower at the tail. A worker pool of one process per online scheduler multiplies inference by a factor of three over a single worker within the same budget and leaves the number of problems solved unchanged, because the parallelism reaches branch expansion rather than the global closure search that produces most of the refutations. Both measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>.
 
 <!-- livebook:{"break_markdown":true} -->
 
@@ -108,7 +106,7 @@ Teaching and presentation are secondary aims of the Shot system, and they influe
 
 <!-- livebook:{"break_markdown":true} -->
 
-The thesis itself serves as the proof of concept for that aim. It is written as a set of Livebook notebooks <a href="#chapter-references">[Liv25]</a> following the principles of literate programming <a href="#chapter-references">[Knu84]</a>: the chapters are the source of truth, the LaTeX build reads them, and the executable cells run the prover being described. A rule classification, an enumeration of pre-unifiers, an orientation decision and a rendered proof object are computed when the chapter is opened rather than asserted in prose. Three registers are kept typographically distinct throughout, as set out in <a href="02_preliminaries.livemd">Chapter 2</a>, so that a claim about the mathematics and a claim about the implementation are never confused for one another.
+The thesis itself serves as the proof of concept for that aim. It is written as a set of Livebook notebooks <a href="#chapter-references">[Liv25]</a> following the principles of literate programming <a href="#chapter-references">[Knu84]</a>: the chapters are the source of truth, the LaTeX build reads them, and the executable cells run the prover being described. A rule classification, an enumeration of pre-unifiers, an orientation decision and a rendered proof object are computed when the chapter's cells are executed rather than asserted in prose. Three registers are kept typographically distinct throughout, as set out in <a href="02_preliminaries.livemd">Chapter 2</a>, so that a claim about the mathematics and a claim about the implementation are never confused for one another.
 
 ## Contributions
 
@@ -121,10 +119,10 @@ The thesis makes the following contributions.
 * Three peer agents built as consumers of that broadcast, for cross-branch instantiation hints, for satisfiability probing of saturated branches, and for global closure, each independently switchable; and reconstruction of an ordinary tableau proof from the derivation traces recorded by the concurrent search (<a href="07_extensions.livemd">Chapter 7</a>).
 * An orientation order for higher-order terms in $\eta$-long $\beta$-normal form, with the stability and typing properties the deferred-substitution discipline requires (<a href="05_term_order.livemd">Chapter 5</a>).
 * A set of concurrent data structures with explicit memory sharing, on which the pool design depends. Terms are hash-consed into a global pool, constructed once and thereafter referred to by identifier, so that a branch is cheap to write to a shared table and cheap for another worker to take from it; intermediate terms are built in process-local scratchpads and committed to the global pool only when a result survives, so that failed enumerations are discarded without adding to it. The session's search state is held in public ETS tables with read and write concurrency, addressed by branch prefix so that closure, tombstoning and hint lookup are single operations (<a href="02_preliminaries.livemd">Chapter 2</a>, <a href="06_architecture.livemd">Chapter 6</a>).
-* The Shot ecosystem: four independently usable Hex packages, `shot_ds` for terms, types and the semantics of Church's simple type theory, `shot_un` for pre-unification, `shot_to` for the term order, and `shot_tx` for the calculus, the architecture and proof objects. Each carries its own documentation and test suite, and the first three are usable without the prover.
+* The Shot ecosystem: four independently usable Hex packages, `shot_ds` (v1.3.1) for terms, types and the semantics of Church's simple type theory, `shot_un` (v0.2.1) for pre-unification, `shot_to` (v0.2.0) for the term order, and `shot_tx` (v0.1.0) for the calculus, the architecture and proof objects. Each carries its own documentation and test suite, and the first three are usable without the prover.
 * An open-source implementation presented as executable notebooks in which the described behaviour is run rather than paraphrased.
-* [TODO: an ablation study over the agents, the calculus rules and the search control, together with parameter sweeps and a scaling measurement over the worker pool (<a href="08_evaluation.livemd">Chapter 8</a>). State the headline results here once they exist.]
-* [TODO: a qualitative evaluation on a structured set of higher-order problems, characterising the problem classes on which the concurrent search is effective and those on which it is not.]
+* An ablation study over the agents, the calculus rules and the search control, with parameter sweeps and a scaling measurement over the worker pool, across the TPTP higher-order corpus (<a href="08_evaluation.livemd">Chapter 8</a>). Global closure through the contradiction agent accounts for about half of all refutations; iterative deepening, demodulation, finite $o$-quantification and atom decomposition contribute measurably; the suggestion agent, primitive substitution, instance-based $\gamma$-expansion and the size of the worker pool do not, at the budget measured.
+* A qualitative evaluation on the structured set of <a href="#chapter-references">[BB05]</a> against five reference systems, characterising the coverage by the model class in which each problem is valid: $57$ of the $70$ problems valid without a functional principle are proved on every run, against five of the $35$ that require one (<a href="08_evaluation.livemd">Chapter 8</a>, worked example by example in <a href="91_appendix_a.livemd">Appendix A</a>).
 
 ## Scope and Non-Goals
 
@@ -160,9 +158,9 @@ The architecture is the subject of <a href="06_architecture.livemd">Chapter 6</a
 
 <!-- livebook:{"break_markdown":true} -->
 
-Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the benchmark method, the baseline configuration, ablations of the agents, of the calculus rules and of the search control, parameter sweeps, scaling with the worker pool, and threats to validity. Worked examples are collected in <a href="91_appendix_a.livemd">Appendix A</a>, and <a href="09_conclusion.livemd">Chapter 9</a> summarises, states the limitations that survive the evaluation, and sets out future work.
+Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the benchmark method and the scoring conventions, the baseline configuration, ablations of the agents, of the calculus rules and of the search control, scaling with the worker pool, the behaviour of the closure search under the two pool sizes, a second study on a structured problem set with the coverage it gives by model class, and threats to validity. Worked examples are collected in <a href="91_appendix_a.livemd">Appendix A</a>, and <a href="09_conclusion.livemd">Chapter 9</a> summarises, states the limitations that survive the evaluation, and sets out future work.
 
-> [TODO: once <a href="08_evaluation.livemd">Chapter 8</a> and the qualitative study are complete, add a short paragraph here stating the principal findings, so that a reader of this chapter alone knows what was measured and with what result.]
+The principal findings, for a reader of this chapter alone: global closure through the contradiction agent is what the prover rests on, and removing it costs about half the refutations; the concurrent search multiplies inference without multiplying closure, so the worker pool reduces latency without extending coverage; and the calculus decides most of the problems whose validity needs only conversion and Boolean extensionality and few of those needing a functional principle, which locates the missing rule rather than a general weakness.
 
 ## Chapter References
 
@@ -171,6 +169,7 @@ Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the b
 * __[And81]__ Peter B. Andrews. Theorem proving via general matings. _Journal of the ACM_, 28(2):193–214, 1981.
 * __[And89]__ Peter B. Andrews. On connections and higher-order logic. _Journal of Automated Reasoning_, 5(3):257–291, 1989.
 * __[Arm03]__ Joe Armstrong. _Making Reliable Distributed Systems in the Presence of Software Errors_. PhD thesis, Royal Institute of Technology (KTH), Stockholm, 2003.
+* __[BB05]__ Christoph Benzmüller and Chad E. Brown. A structured set of higher-order problems. In _Theorem Proving in Higher Order Logics (TPHOLs 2005)_, LNCS 3603, pages 66–81. Springer, 2005.
 * __[BB11]__ Julian Backes and Chad E. Brown. Analytic tableaux for higher-order logic with choice. _Journal of Automated Reasoning_, 47(4):451–479, 2011.
 * __[BBK04]__ Christoph Benzmüller, Chad E. Brown, and Michael Kohlhase. Higher-order semantics and extensionality. _The Journal of Symbolic Logic_, 69(4):1027–1088, 2004.
 * __[BBT+21]__ Alexander Bentkamp, Jasmin Blanchette, Sophie Tourret, Petar Vukmirović, and Uwe Waldmann. Superposition with lambdas. _Journal of Automated Reasoning_, 65(7):893–940, 2021.
@@ -203,7 +202,7 @@ Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the b
 * __[SO25]__ Stack Overflow. 2025 Developer Survey: Technology. https://survey.stackoverflow.co/2025/technology, 2025.
 * __[Sor01]__ Volker Sorge. _$\Omega$-ANTS: A Blackboard Architecture for the Integration of Reasoning Techniques into Proof Planning_. PhD thesis, Universität des Saarlandes, Saarbrücken, 2001.
 * __[Sut17]__ Geoff Sutcliffe. The TPTP problem library and associated infrastructure: From CNF to TH0, TPTP v6.4.0. _Journal of Automated Reasoning_, 59(4):483–502, 2017.
-* __[Sut26]__ Geoff Sutcliffe. The 13th IJCAR automated theorem proving system competition: CASC-J13. https://tptp.org/CASC/J13, 2026. [TODO: replace with the journal report once it appears.]
+* __[Sut26]__ Geoff Sutcliffe. The 13th IJCAR automated theorem proving system competition: CASC-J13. https://tptp.org/CASC/J13, 2026.
 * __[SWB16]__ Alexander Steen, Max Wisniewski, and Christoph Benzmüller. Agent-based HOL reasoning. In _Mathematical Software (ICMS 2016)_, LNCS 9725, pages 75–81. Springer, 2016.
 * __[VBB+21]__ Petar Vukmirović, Alexander Bentkamp, Jasmin Blanchette, Simon Cruanes, Visa Nummelin, and Sophie Tourret. Making higher-order superposition work. In _Automated Deduction (CADE-28)_, LNCS 12699, pages 415–432. Springer, 2021.
 
@@ -211,4 +210,4 @@ Measurements are reported in <a href="08_evaluation.livemd">Chapter 8</a>: the b
 
 ---
 
-Previous: <a href="00_index.livemd">Preface</a> &nbsp;·&nbsp; <a href="00_index.livemd">Contents</a> &nbsp;·&nbsp; Next: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a>
+Previous: <a href="00_index.livemd">Preface</a> &nbsp;$\cdot$&nbsp; <a href="00_index.livemd#table-of-contents">Contents</a> &nbsp;$\cdot$&nbsp; Next: <a href="02_preliminaries.livemd">Chapter 2: Preliminaries</a>
