@@ -1,0 +1,72 @@
+cff-version: 1.2.0
+title: >-
+  Extensionality and Instance-based Methods in Tableau-based Higher-Order
+  Automated Theorem Proving
+message: >-
+  If you refer to this thesis or reuse the notebooks in this repository, please
+  cite the thesis using the metadata below.
+type: software
+authors:
+  - family-names: Schuster
+    given-names: Johannes
+    orcid: "https://orcid.org/0009-0003-5339-7216"
+    affiliation: Otto-Friedrich-Universität Bamberg
+abstract: >-
+  Tableau calculi for higher-order logic decompose a problem without clausifying
+  it, at the cost of one global dependency: a free variable is rigid, so a value
+  closing one branch commits every branch. This thesis presents Shot, a prover
+  organised around that dependency. Every branch-level rule of its calculus over
+  Church's simple type theory is binding-free, recording the condition under
+  which a branch would close rather than choosing a value. Boolean
+  extensionality is reached by renaming an opaque propositional argument onto the
+  branch and instantiating it over the two truth values, the functional
+  principles by expanding equalities at functional type, and the search rests on
+  instance-based methods: general bindings, instance-based quantifier expansion,
+  finite expansion of quantifiers over purely propositional types, and ordered
+  demodulation under a term order stable under substitution. Closing the tableau
+  is then a constraint satisfaction problem over the closure evidence of all open
+  branches, solved by one process, while the branch expansion feeding it runs on
+  a pool of BEAM workers over shared hash-consed terms. An untuned ablation over
+  the TPTP higher-order corpus and a study on a structured problem set locate two
+  limits: global closure produces about half of all refutations and does not
+  receive the parallelism, so it is at present too weak for the architecture
+  built around it, and the calculus decides most of the problems whose validity
+  needs only conversion and Boolean extensionality and few of those where a
+  functional principle is required, which locates a missing rule rather than a
+  general weakness.
+keywords:
+  - automated theorem proving
+  - higher-order logic
+  - simple type theory
+  - semantic tableaux
+  - extensionality
+  - instance-based methods
+  - parallel proof search
+  - Elixir
+  - BEAM
+  - Livebook
+license:
+  - MIT
+  - CC-BY-4.0
+repository-code: "https://github.com/jcschuster/shot-thesis"
+preferred-citation:
+  type: thesis
+  title: >-
+    Extensionality and Instance-based Methods in Tableau-based Higher-Order
+    Automated Theorem Proving
+  authors:
+    - family-names: Schuster
+      given-names: Johannes
+      orcid: "https://orcid.org/0009-0003-5339-7216"
+      affiliation: Otto-Friedrich-Universität Bamberg
+  thesis-type: Master's thesis
+  institution:
+    name: Otto-Friedrich-Universität Bamberg
+    city: Bamberg
+    country: DE
+  department: >-
+    Chair for AI Systems Engineering, Faculty of Information Systems and Applied
+    Computer Sciences
+  year: 2026
+  month: 8
+  url: "https://github.com/jcschuster/shot-thesis"
