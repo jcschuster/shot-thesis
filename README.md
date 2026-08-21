@@ -1,7 +1,8 @@
 # Extensionality and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22045933.svg)](https://doi.org/10.5281/zenodo.22045933)
-[![Run in Livebook](https://livebook.dev/badge/v1/pink.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fjcschuster%2Fshot-thesis%2Fblob%2Fmain%2F91_appendix_a.livemd)
+
+[![Run in Livebook](https://livebook.dev/badge/v1/pink.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fjcschuster%2Fshot-thesis%2Fblob%2Fmain%2F00_index.livemd)
 
 Master's thesis of Johannes Schuster, Chair for AI Systems Engineering,
 Otto-Friedrich-Universität Bamberg, August 2026.
