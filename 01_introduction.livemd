@@ -120,6 +120,10 @@ Teaching and presentation are secondary aims of the Shot system, and they influe
 
 The thesis itself serves as the proof of concept for that aim. It is written as a set of Livebook notebooks <a href="#chapter-references">[Liv25]</a> following the principles of literate programming <a href="#chapter-references">[Knu84]</a>: the chapters are the source of truth, the LaTeX build reads them, and the executable cells run the prover being described. A rule classification, an enumeration of pre-unifiers, an orientation decision and a rendered proof object are computed when the chapter's cells are executed rather than asserted in prose. Three registers are kept typographically distinct throughout, as set out in <a href="02_preliminaries.livemd">Chapter 2</a>, so that a claim about the mathematics and a claim about the implementation are never confused for one another.
 
+<!-- livebook:{"break_markdown":true} -->
+
+The notebooks and a typeset rendering of them are archived under a single identifier, https://doi.org/10.5281/zenodo.22045933. A reader who follows a claim to the cell that settles it obtains the code and the stored outputs that produced the figures reported here. The identifier resolves to the version of the notebooks tagged `v1.0`, which is the version the printable document renders; later versions are separate entries in the same record.
+
 ## Contributions
 
 The thesis makes the following contributions.

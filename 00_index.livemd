@@ -42,6 +42,10 @@ __Keywords:__ Automated Theorem Proving $\cdot$ Higher-Order Logic $\cdot$ Seman
 
 I thank Christoph Benzmüller and David Fuenmayor for the frequent and stimulating discussions during the preparation of this work. Their feedback and pointers to literature and concepts for higher-order proof search and adjacent topics was invaluable for both the design and the implementation of the calculus.
 
+## The Executable Record
+
+The chapters of this thesis are Livebook notebooks and can be read as they stand or evaluated. Each cell stores the result it produced, so the argument can be followed without a runtime; the tables and diagrams that Kino draws are rebuilt by the front end and appear once the chapter has been evaluated. A typeset rendering of the same chapters, set for printing, is published beside the notebooks as <a href="https://github.com/jcschuster/shot-thesis/blob/v1.0/shot-thesis.pdf">shot-thesis.pdf</a>.
+
 ## Table of Contents
 
 <table style="width: 100%">
