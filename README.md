@@ -4,7 +4,7 @@
 [![Run in Livebook](https://livebook.dev/badge/v1/pink.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fjcschuster%2Fshot-thesis%2Fblob%2Fmain%2F91_appendix_a.livemd)
 
 Master's thesis of Johannes Schuster, Chair for AI Systems Engineering,
-Otto-Friedrich-Universität Bamberg, August 2026.
+University of Bamberg, August 2026.
 Supervisor: Prof. Dr. Christoph Benzmüller.
 
 The thesis presents Shot, a higher-order tableau prover for Church's simple type

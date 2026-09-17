@@ -1,0 +1,720 @@
+<!-- livebook:{"file_entries":[{"name":"EvaluationAblation.png","type":"attachment"},{"name":"EvaluationBB05.png","type":"attachment"},{"name":"Logo.png","type":"attachment"}]} -->
+
+# Thesis Defense
+
+```elixir
+Mix.install([
+  {:shot_tx, "0.1.0"},
+  {:kino, "~> 0.19.1"}
+])
+```
+
+## ⠀
+
+> _This Livebook is meant to be displayed in **presentation mode** (enable it under View → Presentation in the lower right-hand corner). Some useful shortcuts: `j` and `k` are for next/previous cell and double-tapping `e` executes the current code cell._
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="text-align: center">
+
+<img src="files/Logo.png" width="18%" />
+
+<div style="letter-spacing: 0.12em; font-size: 0.85em; margin-top: 0.5rem">UNIVERSITY OF BAMBERG</div>
+
+<div style="margin-top: 0.4rem">Applied Computer Science Degree Program in the<br/>Faculty of Information Systems and Applied Computer Sciences</div>
+
+<div style="margin-top: 2.5rem; letter-spacing: 0.16em; font-size: 0.8em; text-transform: uppercase">Master's Thesis Defense</div>
+
+<div style="margin-top: 0.9rem; font-size: 1.55em; font-weight: 600; line-height: 1.35">Extensionality and Instance-based Methods in<br/>Tableau-based Higher-Order Automated Theorem Proving</div>
+
+<div style="margin-top: 2.5rem">by</div>
+
+<div style="margin-top: 0.4rem; font-size: 1.1em; font-weight: 600">Johannes Schuster</div>
+
+<div style="margin-top: 2.5rem"><em>Supervisor</em><br/>Prof. Dr. Christoph Benzmüller</div>
+
+<div style="margin-top: 1rem">Chair for AI Systems Engineering</div>
+
+<div style="margin-top: 1rem; margin-bottom: 2rem">18 August 2026</div>
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Contributions</h3>
+
+<hr style="color: #7287fd">
+
+- A binding-free formulation of a free-variable tableau calculus for simply-typed higher-order logic
+- A concurrent actor architecture on the BEAM as implementation prototype
+- Implementation of infrastructure, including data structures, parsing, unification and term ordering
+- Four publicly available Hex packages: `shot_ds`, `shot_un`, `shot_to`, and `shot_tx`
+- Interactive material (Livebooks) for demonstration and education purposes, including the Livebook version of the thesis
+- An ablation study over different components of the prover
+- A qualitative evaluation over a structured set of higher-order problems (Benzmüller&Brown, 2005)
+
+</div>
+
+## Sʜᴏᴛ and its Foundation
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based <span style="color: #4c4f69; text-decoration-line: underline">Higher-Order</span> Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">The Logic in Question</h3>
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">(Monomorphised) Simple Types</h5>
+
+$$
+\mathcal{B} = \{\iota, o\} \uplus \mathcal{A}  \qquad\qquad\qquad \bar\tau_n{\to}\varsigma \in \mathcal{T}\quad\text{ if $\bar\tau_n \in \mathcal{T}$ with $n \geq 0$ and $\varsigma \in \mathcal{B}$}
+$$
+
+$\mathcal{A}$: type variables, treated as rigid base types
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">Terms</h5>
+
+$$
+s, t \coloneqq c\langle\bar\rho\rangle \mid X \mid p \mid i \mid \lambda \bar\tau.\, t \mid s(\bar t)
+$$
+
+$c$: constant symbol from signature, $\bar\rho, \bar\tau \in \mathcal{T}$, $X$: variable symbol, $p$: parameter, $i \in \N_{> 0}$: de Bruijn index
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">Signature</h5>
+
+$$
+\top, \bot : o
+\qquad\qquad
+\neg : o \!\to\! o
+\qquad\qquad
+\lor, \land, \supset, \equiv \;: (o, o) {\to} o
+$$
+
+$$
+\forall,\exists : [\alpha].\, (\alpha {\to} o) {\to} o
+\qquad\qquad
+=\; : [\alpha].\, (\alpha, \alpha) {\to} o
+$$
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based <span style="color: #4c4f69; text-decoration-line: underline">Higher-Order</span> Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Term Representation and Parsing</h3>
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">Data Structures</h5>
+
+- Terms in $\beta\eta$-long normal form, normalised after every transformation
+- _Spine_ representation (uncurried)
+- Bookkeeping fields for caching
+    - `:fvars, :consts, :tvars, :max_num`
+- _Hash consing_: terms are only created once with distinct ID
+
+<h5 style="color: #4c4f69">Parsing THF</h5>
+
+- Recursive descent with algorithm W-style type inference (supports Hindley-Milner-like polymorphism)
+- _Sigils_ allow for quick parsing of THF as a DSL
+
+</div>
+
+```elixir
+import ShotDs.Hol.Sigils
+~g{ ^[X: $o]: ( P & X ) }
+```
+
+```elixir
+alias ShotDs.Stt.TermFactory, as: TF
+term = TF.get_term! ~g{ ^[X: $o]: ( P & X ) }
+Kino.Tree.new term
+```
+
+```elixir
+Kino.Layout.grid for a <- term.args, do: Kino.Tree.new TF.get_term! a
+```
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in <span style="color: #4c4f69; text-decoration-line: underline">Tableau-based</span> Higher-Order Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">The Calculus: Standard Expansion Rules</h3>
+
+<hr style="color: #7287fd">
+
+**Sʜᴏᴛ constructs standard free-variable refutation tableaux:**
+
+For proof goal $\Phi \models \psi$, show that $\Phi \cup \{\neg \psi\}$ is unsatisfiable (has a _closed_ tableau).
+
+<hr style="color: #7287fd">
+
+$\alpha$- and $\beta$-rules:
+
+$$
+\frac{\neg\neg \varphi}{\varphi}(\neg\neg) \qquad\qquad
+\frac{\varphi \land \psi}{\begin{gathered}\varphi \\ \psi\end{gathered}}(\land) \qquad\qquad
+\frac{\neg (\varphi \lor \psi)}{\begin{gathered}\neg \varphi \\ \neg \psi\end{gathered}}(\neg\lor) \qquad\qquad
+\frac{\neg(\varphi \supset \psi)}{\begin{gathered}\varphi \\ \neg \psi\end{gathered}}(\neg\!\supset)
+$$
+
+$$
+\frac{\varphi \lor \psi}{\varphi \mid \psi}(\lor) \qquad
+\frac{\neg(\varphi \land \psi)}{\neg\varphi \mid \neg\psi}(\neg\land) \qquad
+\frac{\varphi \supset \psi}{\neg\varphi \mid \psi}(\supset)\qquad
+\frac{\varphi \equiv \psi}{\begin{gathered}\varphi \supset \psi \\ \psi \supset \varphi\end{gathered}}(\equiv) \qquad
+\frac{\neg(\varphi \equiv \psi)}{\neg(\varphi \supset \psi) \mid \neg(\psi \supset \varphi)}(\neg\!\equiv)
+$$
+
+$\beta$-variation, as $\varphi \lor \psi \equiv \varphi \lor (\psi \land \neg \varphi)$:
+
+$$
+\frac{\beta}{\begin{array}{c|c}\beta_1 & \beta_2 \\ & \neg\beta_1\end{array}}(\beta\text{-var})
+$$
+
+$\gamma$-rules ($X$ is a fresh variable symbol):
+
+$$
+\frac{\forall \tau.\, \Phi}{\begin{array}{c}\Phi(X\!:\!\tau) \\ \forall \tau.\, \Phi\end{array}}(\forall) \qquad\qquad
+\frac{\neg(\exists \tau.\, \Phi)}{\begin{array}{c}\neg (\Phi(X\!:\!\tau)) \\ \neg(\exists \tau.\, \Phi)\end{array}}(\neg\exists)
+$$
+
+$\delta$-rules ($\mathbf{s}$ is a fresh Skolem term for $\Phi$):
+
+$$
+\frac{\exists \tau.\, \Phi}{\Phi(\mathbf{s})}(\exists) \qquad\qquad
+\frac{\neg(\forall \tau.\, \Phi)}{\neg(\Phi(\mathbf{s}))}(\neg\forall)
+$$
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in <span style="color: #4c4f69; text-decoration-line: underline">Tableau-based</span> Higher-Order Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Binding-Freeness as Paradigm and Demodulation</h3>
+
+<hr style="color: #7287fd">
+
+- All rules are implemented to be _binding-free_, i.e., no variable is ever bound.
+- Branch closure requiring non-empty substitution only happens **simultaneously** and unifiers are only computed jointly.
+- Disagreement on literals is recorded as candidate.
+- Search space for simultaneous unification: Cartesian product over all candidates of all branches.
+
+This discipline allows a restricted version of _demodulation_ to be adapted from superposition calculi. Under the equational theory $\mathcal{E}(\mathfrak{B})$ of a branch $\mathfrak{B}$ and _reduction order_ $\succ$:
+
+$$
+\frac{\begin{gathered}\mathcal{E}(\mathfrak{B}) \\ u\end{gathered}}{u{\downarrow}_{\mathcal{E}(\mathfrak{B})}^\succ}(\mathrm{demod})
+$$
+
+To keep demodulation binding free, we only consider ground oriented equations in $\mathcal{E}(\mathfrak{B})$.
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality</span> and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Equality Decomposition (Kohlhase, 1995)</h3>
+
+<hr style="color: #7287fd">
+
+So far, the rules can't handle a single equation without context. In these cases, we need to decompose in terms of Leibniz equality and extensionality ($\varsigma \in \mathcal{B} \setminus \{o\}$):
+
+$$
+\frac{\varphi =\!\langle o\rangle\; \psi}{\varphi \equiv \psi}(=\!\langle o\rangle) \qquad
+\frac{s =\!\langle \varsigma\rangle\; t}{\forall \varsigma {\to} o.\,1(s) \equiv 1(t)}(=\!\langle \varsigma\rangle) \qquad
+\frac{s =\!\langle (\tau, \bar{\upsilon}) {\to} \varsigma\rangle\; t}{\forall \tau.\, s(1) =\!\langle\bar{\upsilon} {\to} \varsigma\rangle\; t(1)}(=\!\langle(\tau, \bar{\upsilon}) {\to} \varsigma\rangle)
+$$
+
+$$
+\frac{\neg(\varphi =\!\langle o\rangle\; \psi)}{\neg(\varphi \equiv \psi)}(\neg\!=\!\langle o\rangle) \qquad
+\frac{\neg(s =\!\langle \varsigma\rangle\; t)}{\neg(\forall \varsigma {\to} o.\,1(s) \equiv 1(t))}(\neg\!=\!\langle \varsigma\rangle) \qquad
+\frac{\neg(s =\!\langle (\tau, \bar{\upsilon}) {\to} \varsigma\rangle\; t)}{\neg(\forall \tau.\, s(1) =\!\langle\bar{\upsilon} {\to} \varsigma\rangle\; t(1))}(\neg\!=\!\langle(\tau, \bar{\upsilon}) {\to} \varsigma\rangle)
+$$
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality and Instance-based Methods</span> in Tableau-based Higher-Order Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Boolean Extensionality via Subformula Renaming and Instantiation</h3>
+
+<hr style="color: #7287fd">
+
+When a literal $\varphi$ has a rigid subformula $t$ of finite domain at position $\pi$, nothing will _guess_ its value. The following two rules allow for canonical expansion in these cases and combined give boolean extensionality:
+
+$$
+\frac{\varphi}{\begin{gathered}\varphi[\mathbf{s}]_\pi \\ \mathbf{s} =\!\langle\tau\rangle\; t\end{gathered}}(\mathrm{rename})
+\qquad\qquad
+\frac{\varphi}{\varphi[b_1]_\pi \mid \dots \mid \varphi[b_k]_\pi}(\mathrm{inst})
+$$
+
+The rule $(\mathrm{inst})$ fires when $\varphi|_\pi$ is headed by parameter (or user-defined constant) $c : \tau$ and $\mathcal{D}(\tau) = \{b_1, \dots, b_k\}$. $\tau$ needs to be a pure $o$-type. A proof of $p(a) \land p(b) \supset p(a \land b)$ shows this at work:
+
+</div>
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+import ShotTx.Prover
+Logger.configure level: :error
+
+opts = [beta_variant: false, unfold_defs: :eager]
+
+with {:thm, proof} <- prove(~f{ (p @ a & p @ b) => p @ (a & b) }, opts) do
+  Kino.Mermaid.new ShotTx.Proof.to_mermaid proof
+end
+```
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and <span style="color: #4c4f69; text-decoration-line: underline">Instance-based Methods</span> in Tableau-based Higher-Order Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">$\gamma$-Instantiation: Finite Domains and Primitive Substitution</h3>
+
+<hr style="color: #7287fd">
+
+Finite domains can be enumerated without introducing variables and therefore inter-branch dependencies.
+
+For pure $o$-type $\tau$ with $\mathcal{D}(\tau) = \{b_1, \dots, b_n\}$:
+
+$$
+\frac{\forall \tau.\, \Phi}{\begin{gathered}\Phi(b_1) \\ \vdots \\ \Phi(b_k)\end{gathered}}(\forall_{\mathrm{fin}}) \qquad\qquad
+\frac{\neg(\exists \tau.\, \Phi)}{\begin{gathered}\neg\Phi(b_1) \\ \vdots \\ \neg\Phi(b_k)\end{gathered}}(\neg\exists_{\mathrm{fin}})
+$$
+
+When $\tau$ is an impure $o$-type, i.e., with goal $o$, its (infinite) domain can be enumerated by _general bindings_.
+
+$$
+\frac{\forall \tau.\, \Phi}{\Phi(G_1) \mid \dots \mid \Phi(G_j)}(\mathrm{prim})
+$$
+
+For type $\iota{\to}o$, this might be the term $\lambda\iota.\, H_1(1) \land H_2(1)$ or just $\lambda\iota.\,\bot$.
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based Higher-Order <span style="color: #4c4f69; text-decoration-line: underline">Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Agents</h3>
+
+<hr style="color: #7287fd">
+
+`ContradictionAgent`:
+
+- collects branch-local disagreement pairs and solves for common unifier
+- most important closure mechanism
+- independent process listening to a PubSub topic
+
+`SuggestionAgent`:
+
+- listens to the same topic
+- computes unifiers and suggests solutions as $\gamma$-instantiations
+
+`ModelAgent`:
+
+- checks a branch for satisfiability, externally via `nitpick`
+- a satisfiable branch yields a countermodel (⇒ another path to `CSA`)
+- off by default, not evaluated
+
+</div>
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+Kino.Mermaid.new """
+graph TD
+  SS["SessionSupervisor<br/>(:rest_for_one)"]
+  EK["EtsKeeper<br/>owns session tables"]
+  TS["Task.Supervisor<br/>async CSP dispatches"]
+  MG["Manager<br/>orchestration + deepening"]
+  CA["ContradictionAgent<br/>global closure (CSP)"]
+  SA["SuggestionAgent<br/>heuristic hints (opt-out)"]
+  MA["ModelAgent<br/>satisfiability probes (opt-in)"]
+  BS["DynamicSupervisor<br/>worker pool"]
+  W1["Worker 1"]
+  W2["Worker 2"]
+  WN["Worker N"]
+
+  SS --> EK
+  SS --> TS
+  SS --> MG
+  SS --> CA
+  SS --> SA
+  SS --> MA
+  SS --> BS
+  BS --> W1
+  BS --> W2
+  BS --> WN
+
+  classDef keeper fill:#e3f2fd,stroke:#1565c0,color:#0d47a1;
+  classDef agent fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+  classDef worker fill:#eeeeee,stroke:#999999,color:#333333;
+  class EK keeper;
+  class CA,SA,MA agent;
+  class W1,W2,WN worker;
+"""
+```
+
+## Evaluation: Ablation and Qualitative Investigation
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based Higher-Order <span style="color: #4c4f69; text-decoration-line: underline">Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Ablation Study over TPTP-v9.3.0</h3>
+
+<hr style="color: #7287fd">
+
+- **5109** problems in TH0 and TH1 syntax
+- **4183** reached the prover (after removing 628 parse timeouts, 221 parse errors and 77 without conjecture)
+- `timeout` 2000 ms, default parameters as baseline (**untuned**)
+- 16 configurations
+- Baseline solved **685** (THM) + **62** (CSA)
+- Union over 16 configs: **905** vs. 747 ⇒ baseline untuned
+- Components contributing most:
+  - `ContradictionAgent`: $-364$
+  - Iterative deepening: $-87$
+  - Demodulation: $-41$
+  - Eager definition unfolding: $+48$
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+![Ablation Results](files/EvaluationAblation.png)
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based Higher-Order <span style="color: #4c4f69; text-decoration-line: underline">Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Gretchen Question: Worker Pool vs. Single Worker</h3>
+
+<hr style="color: #7287fd">
+
+- Comparison over **3383** problems, both configurations exhausted budget
+- Worker pool size 8 vs. 1
+- Pool: $3.27\times$ inference steps, $3.13\times$ local branch closure
+- However, only $1.17\times$ global searches with only $0.46$ closure searches per $1000$ steps vs. $1.28$ (serial)
+- Pool is only $1.28\times$ faster on 705 solved problems
+
+    ⇒ `ContradictionAgent` is already overwhelmed with one worker, a closure search takes nearly half the time budget
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality</span> and Instance-based Methods in Tableau-based <span style="color: #4c4f69; text-decoration-line: underline">Higher-Order</span> Automated Theorem Proving
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Evaluation over Benzmüller & Brown (2005)</h3>
+
+<hr style="color: #7287fd">
+
+- Structured evaluation wrt. model classes
+- **130 problems**, including _notions of equality_, _Boolean and functional extensionality_, _set theory_, _Cantor's theorem_
+- $76$-$79$ were proved (non-determinism from message passing)
+- Sʜᴏᴛ was not able to prove problems from model classes $\mathfrak{M}_{\beta\xi}$ and $\mathfrak{M}_{\beta\mathfrak{f}}$ (**functional extensionality**)
+
+</div>
+
+## Discussion and Future Work
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Limitations: Architecture, Implementation and Theoretical Limitations</h3>
+
+<hr style="color: #7287fd">
+
+- **`ContradictionAgent`** is currently too weak
+
+    ⇒ Make _unification_ more performant (concurrency, more decidable fragments etc.), or keep partial solutions (à la Giese, 2001)
+
+    ⇒ Parallel searches over disjoint branch subsets
+
+    ⇒ Better _problem formulation_, not naive cartesian product over candidates
+
+- Recursive descent **parser is too slow** for larger files
+
+    ⇒ work in progress: lazy _LALR(1)_ parser, generated from TPTP's SyntaxBNF
+
+- Calculus lacks **functional extensionality** ⇒ unification constraint or expansion rule:
+
+$$
+\frac{\begin{gathered}P(\bar{s}_n) \\ \vdots \\ \neg P(\bar{t}_n)\end{gathered}}{\neg(s_1 =\!\langle\tau_1\rangle\; t_1) \;\mid\; \cdots \;\mid\; \neg(s_n =\!\langle\tau_n\rangle\; t_n)}(\mathrm{ext})
+$$
+
+- A **completeness** argument is not established
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Future Work and Work in Progress</h3>
+
+<hr style="color: #7287fd">
+
+- Investigation into data structures ⇒ $\eta$-long or $\eta$-short form?
+- Concurrency **without binding-freeness**
+- Extending the signature with **choice**
+- Experiments with **complete signature** over $o{\to}o$ and $(o, o){\to}o$
+- Proper evaluation of `ModelAgent`
+- Adapt SZS and TPTP proof objects
+
+<h5 style="color: #4c4f69">Work in Progress</h5>
+
+- Efficient and **properly TPTP-ground** parser (`tptp` package)
+- Memory-efficient, but **stateless data structures**
+
+</div>
+
+## Take-Home
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+<span style="color: #4c4f69; text-decoration-line: underline">Extensionality and Instance-based Methods in Tableau-based Higher-Order Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Take-Home Messages</h3>
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">Binding-free tableaux move closure out of the branch</h5>
+
+- No rule commits to a value for a free variable; branches only publish closure evidence
+- Global closure is one constraint problem, solved by the `ContradictionAgent`
+- Measured: it accounts for about half of all refutations ($-364$ of $682$)
+
+<h5 style="color: #4c4f69">Extensionality is bounded</h5>
+
+- Boolean extensionality via renaming and instantiation, $\eta$ via long normal form
+- Functional principles only from explicit equations ⇒ $57/70$ vs. $5/35$ on Benzmüller & Brown (2005)
+- The missing rule $(\mathrm{ext})$ is identified
+
+<h5 style="color: #4c4f69">Parallelism is bottlenecked</h5>
+
+- 8 workers: $3.27\times$ inference, but no more refutations ($680$ vs. $682$)
+- Bottleneck is the single global closure search, not branch expansion ⇒ future work targets the architecture
+
+<h5 style="color: #4c4f69">Artefacts</h5>
+
+- Four Hex packages (`shot_ds`, `shot_un`, `shot_to`, `shot_tx`) and the thesis as runnable Livebooks: `github.com/jcschuster/shot-thesis`
+
+</div>
+
+## Backup
+
+![Comparison on Benzmüller & Brown (2005) of Shot vs SOTA provers](files/EvaluationBB05.png)
+
+```elixir
+%ShotTx.Data.Parameters{} |> Kino.Tree.new
+```
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based Higher-Order <span style="color: #4c4f69; text-decoration-line: underline">Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">Outbox Pattern</h3>
+
+<hr style="color: #7287fd">
+
+Branches are data, and not independent workers like in Goéland (Cailler, 2022); this would explode the memory usage.
+
+Workers pick up branches, apply a fixed number of steps to them, and return them to the working queue. Branches communicate their side-effects rather than apply them.
+
+```elixir
+@type effect ::
+        :no_effects
+        | {:notify_ca, MapSet.t()}
+        | {:record_provenance, [{Term.term_id(), Provenance.t()}]}
+@type step_result ::
+        {:continue, %__MODULE__{}, effect()}
+        | {:split, my_branch :: %__MODULE__{}, sibling :: %__MODULE__{}}
+        | {:instantiate, branches :: [%__MODULE__{}]}
+        | {:idle, %__MODULE__{}}
+        | {:saturated, {defs :: map(), literals :: MapSet.t()}}
+        | {:exhausted, %__MODULE__{}}
+        | {:closed, %__MODULE__{}}
+```
+
+</div>
+
+<!-- livebook:{"break_markdown":true} -->
+
+<div style="border-radius: 0.5rem; border-color: #7287fd; border-width: 0.1em; background-color: #eff1f5; color: #4c4f69; padding: 1rem;">
+
+<h5 style="color: #9ca0b0; margin-top: -0.5rem;">
+Extensionality and Instance-based Methods in Tableau-based Higher-Order <span style="color: #4c4f69; text-decoration-line: underline">Automated Theorem Proving</span>
+</h5>
+
+<hr style="color: #7287fd">
+
+<h3 style="color: #4c4f69">BEAM Primitives Supporting Concurrent Theorem Proving</h3>
+
+<hr style="color: #7287fd">
+
+<h5 style="color: #4c4f69">Supervision Trees</h5>
+
+- A crashed process is automatically restarted according to some strategy. The VM is kept alive.
+- Killing a supervisor instantly kills all its supervised processes.
+
+⇒ **Failure isolation** and **quick cancellation** come for free.
+
+<h5 style="color: #4c4f69">Message Passing and Actor Model</h5>
+
+- Every process has a _mailbox_
+- `call` (synchronous) and `cast` (asynchronous)
+- Publish-subscribe topics for broadcasting
+
+<h5 style="color: #4c4f69">Erlang Term Storage (ETS)</h5>
+
+- _global, concurrency-safe_ hash table
+- useful as _work queue_ for work-stealing processes
+- can hold _tombstones_ for work items (here: branches)
+
+</div>
+
+```elixir
+%ShotTx.Prover.Branch{} |> Kino.Tree.new
+```
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+Kino.Mermaid.new """
+sequenceDiagram
+  participant C as Caller
+  participant MG as Manager
+  participant WQ as work_queue (ETS)
+  participant W as Worker
+  participant PS as branch_evidence PubSub
+  participant CA as ContradictionAgent
+  participant TS as Task.Supervisor
+
+  C->>MG: prove(conjecture)
+  MG->>WQ: seed root branch
+  MG->>W: spawn N workers
+
+  loop until closed / stalled / timeout
+    W->>WQ: checkout branch
+    Note over W: Branch.step/4 (pure)
+    alt branch splits
+      W->>WQ: push child branches
+      W->>PS: broadcast {:branch_split, parent, children}
+    else branch has closing options
+      W->>PS: broadcast {:local_clashes, branch, options}
+    else branch closes on ground contradiction
+      W->>PS: broadcast {:branch_closed, branch}
+    end
+    PS-->>CA: deliver evidence
+    CA->>TS: dispatch CSP (union of one option per open branch)
+    Note over TS: ShotUn.unify(...) |> take(1)
+    alt common unifier found
+      TS-->>CA: {:ok, theta}
+      CA->>MG: {:proof_result, {:unsat, theta}}
+      MG-->>C: {:thm, proof}
+    else no global unifier yet
+      TS-->>CA: :error
+      Note over CA: keep accumulating evidence
+    end
+  end
+
+  Note over MG: workers all idle, trigger deepening
+  MG->>W: {:wake_up, new_gamma, new_prim_depth}
+"""
+```
