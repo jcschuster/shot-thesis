@@ -59,7 +59,7 @@ Mix.install([
 - Four publicly available Hex packages: `shot_ds`, `shot_un`, `shot_to`, and `shot_tx`
 - Interactive material (Livebooks) for demonstration and education purposes, including the Livebook version of the thesis
 - An ablation study over different components of the prover
-- A qualitative evaluation over a structured set of higher-order problems (Benzmüller&Brown, 2005)
+- A qualitative evaluation over a structured set of higher-order problems (Benzmüller & Brown, 2005)
 
 </div>
 
@@ -322,7 +322,7 @@ Extensionality and <span style="color: #4c4f69; text-decoration-line: underline"
 
 <hr style="color: #7287fd">
 
-<h3 style="color: #4c4f69">$\gamma$-Instantiation: Finite Domains and Primitive Substitution</h3>
+<h3 style="color: #4c4f69">γ-Instantiation: Finite Domains and Primitive Substitution</h3>
 
 <hr style="color: #7287fd">
 
