@@ -19,7 +19,7 @@ Mix.install([
 
 <div width="18%" style="position: absolute; margin-left: 78%; margin-top: -1rem">
   <img src="files/thesis-github.png" width="80%" />
-  <p style="font-size: 80%; margin-top: -1.5rem">
+  <p style="font-size: 83%; margin-top: -1.5rem">
     <tt>github.com/jcschuster/shot-thesis</tt>
   </p>
 </div>
@@ -43,7 +43,7 @@ Mix.install([
 
 <div style="margin-top: 1rem">Chair for AI Systems Engineering</div>
 
-<div style="margin-top: 1rem; margin-bottom: 2rem">18 August 2026</div>
+<div style="margin-top: 1rem; margin-bottom: 2rem">18 September 2026</div>
 
 </div>
 
@@ -442,7 +442,7 @@ Extensionality and Instance-based Methods in Tableau-based Higher-Order <span st
 - `timeout` 2000 ms, default parameters as baseline (**untuned**)
 - 16 configurations
 - Baseline solved **685** (THM) + **62** (CSA)
-- Union over 16 configs: **905** vs. 747 ⇒ baseline untuned
+- Union over 16 configs: **905** vs. 743 ⇒ baseline untuned
 - Components contributing most:
   - `ContradictionAgent`: $-364$
   - Iterative deepening: $-87$
