@@ -516,7 +516,7 @@ Extensionality and Instance-based Methods in Tableau-based Higher-Order <span st
 
 - Recursive descent **parser is too slow** for larger files
 
-    ⇒ work in progress: lazy _LALR(1)_ parser, generated from TPTP's SyntaxBNF
+    ⇒ work in progress: lazy _LALR(1)_ parser, generated from TPTP's SyntaxBNF (`tptp` package)
 
 - Calculus lacks **functional extensionality** ⇒ unification constraint or expansion rule:
 
@@ -548,10 +548,6 @@ $$
 - Experiments with **complete signature** over $o{\to}o$ and $(o, o){\to}o$
 - Proper evaluation of `ModelAgent`
 - Adapt SZS and TPTP proof objects
-
-<h5 style="color: #4c4f69">Work in Progress</h5>
-
-- Efficient and **properly TPTP-ground** parser (`tptp` package)
 - Memory-efficient, but **stateless data structures**
 
 </div>
