@@ -1,4 +1,4 @@
-<!-- livebook:{"file_entries":[{"name":"EvaluationAblation.png","type":"attachment"},{"name":"EvaluationBB05.png","type":"attachment"},{"name":"Logo.png","type":"attachment"}]} -->
+<!-- livebook:{"file_entries":[{"name":"EvaluationAblation.png","type":"attachment"},{"name":"EvaluationBB05.png","type":"attachment"},{"name":"Logo.png","type":"attachment"},{"name":"thesis-github.png","type":"attachment"}]} -->
 
 # Thesis Defense
 
@@ -16,6 +16,14 @@ Mix.install([
 <!-- livebook:{"break_markdown":true} -->
 
 <div style="text-align: center">
+
+<div width="18%" style="position: absolute; margin-left: 78%; margin-top: -1rem">
+  <img src="files/thesis-github.png" width="80%" />
+  <p style="font-size: 80%; margin-top: -1.5rem">
+    <tt>github.com/jcschuster/shot-thesis</tt>
+  </p>
+</div>
+
 
 <img src="files/Logo.png" width="18%" />
 
